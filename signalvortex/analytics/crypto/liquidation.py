@@ -137,17 +137,20 @@ def compute_cascade_risk(
     if hasattr(timestamp, "to_pydatetime"):
         timestamp = timestamp.to_pydatetime()
     
-    # Factor 1: OI buildup (0-1)
-    oi_change = abs(row.get("oi_change_24h", 0))
-    oi_factor = min(oi_change / (OI_SPIKE_THRESHOLD * 2), 1.0)
+    # Factor 1: OI buildup - use z-score instead of static threshold
+    oi_zscore = row.get("oi_zscore", 0)
+    oi_factor = min(abs(oi_zscore) / 3, 1.0)  # 3σ = max risk
     
-    # Factor 2: Funding rate extreme (0-1)
+    # Factor 2: Funding rate - use relative magnitude  
     funding_abs = abs(funding_rate)
-    funding_factor = min(funding_abs / (FUNDING_EXTREME_THRESHOLD * 2), 1.0)
+    # Adaptive: compare to typical funding (0.01% = neutral, 0.1% = extreme)
+    funding_factor = min(funding_abs / 0.001, 1.0)
     
-    # Factor 3: Price momentum against position (0-1)
+    # Factor 3: Price momentum - use z-score logic
     price_momentum = row.get("price_momentum", 0)
-    momentum_factor = min(abs(price_momentum) / (PRICE_MOMENTUM_THRESHOLD * 2), 1.0)
+    volatility = row.get("volatility", 0.01)
+    momentum_zscore = price_momentum / max(volatility, 0.005)  # Normalize by volatility
+    momentum_factor = min(abs(momentum_zscore) / 3, 1.0)
     
     # Determine direction
     long_ratio = row.get("long_ratio", 0.5)

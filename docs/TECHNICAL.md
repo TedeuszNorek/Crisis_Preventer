@@ -6,221 +6,124 @@
 2. [Wzorce Projektowe](#wzorce-projektowe)
 3. [Sources (Źródła Danych)](#sources-źródła-danych)
 4. [Analytics (Moduły Analityczne)](#analytics-moduły-analityczne)
-5. [Konfiguracja](#konfiguracja)
-6. [API Reference](#api-reference)
+5. [Machine Learning](#machine-learning)
+6. [Konfiguracja](#konfiguracja)
 
 ---
 
 ## Przegląd Architektury
 
-SignalVortex to modularna platforma analityczna zbudowana w oparciu o:
-
-- **Layered Architecture**: Separacja warstw (sources → analytics → reporting)
-- **Dependency Injection**: Konfiguracja wstrzykiwana przez `Config`
-- **Factory Pattern**: Centralne tworzenie klientów API
-- **Registry Pattern**: Dynamiczna rejestracja modułów analitycznych
-
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │   Sources   │────▶│  Analytics  │────▶│  Reporting  │
-│  (9 APIs)   │     │ (7 modules) │     │  (outputs)  │
+│  (10 APIs)  │     │ (12 modules)│     │  (outputs)  │
 └─────────────┘     └─────────────┘     └─────────────┘
        ▲                   ▲
        │                   │
 ┌──────┴───────────────────┴──────┐
-│         Core (Factory, Registry, Config)         │
+│    Core (Factory, ML, Config)   │
 └─────────────────────────────────┘
-```
-
----
-
-## Wzorce Projektowe
-
-### 1. Factory Pattern (`core/factory.py`)
-
-**Cel**: Centralizacja tworzenia klientów API z cache'owaniem instancji.
-
-```python
-from signalvortex.core import SourceFactory
-
-factory = SourceFactory(config)
-client = factory.get("polygon")  # Lazy loading + cache
-```
-
-**Cechy**:
-- Lazy loading klientów
-- Singleton per source type (cache)
-- Auto-injection API keys z `Config`
-- Registry-based discovery
-
-### 2. Registry Pattern (`core/registry.py`)
-
-**Cel**: Dynamiczna rejestracja i discovery modułów analitycznych.
-
-```python
-from signalvortex.core import AnalyticsRegistry, AnalyticsCategory
-
-@AnalyticsRegistry.register("my_analysis", AnalyticsCategory.CRYPTO)
-def my_analysis(symbol: str, **kwargs):
-    ...
-
-# Later
-result = AnalyticsRegistry.run("my_analysis", symbol="BTC")
-```
-
-### 3. Strategy Pattern (`analytics/anomaly/`)
-
-**Cel**: Wymienne strategie wykrywania anomalii.
-
-```python
-from signalvortex.analytics.anomaly import flag_anomalies
-
-# Heuristic only
-df = flag_anomalies(data, method="heuristic")
-
-# Machine Learning (IsolationForest)
-df = flag_anomalies(data, method="ml")
-
-# Hybrid (recommended)
-df = flag_anomalies(data, method="hybrid")
 ```
 
 ---
 
 ## Sources (Źródła Danych)
 
-### Polygon (`sources/polygon/`)
-
-Equity options snapshots i IV data.
-
-```python
-from signalvortex.sources import PolygonClient
-
-client = PolygonClient(api_key="...")
-chain_df = client.get_option_chain("AAPL")
-```
-
-### Binance (`sources/binance/`)
-
-Crypto futures: OI, L/S ratios, klines, archive.
+### Binance Futures (`sources/binance/client.py`)
 
 ```python
 from signalvortex.sources import BinanceFuturesClient
-from signalvortex.sources.binance import collect_leverage_metrics
 
 client = BinanceFuturesClient()
-oi = client.get_open_interest("BTCUSDT")
 klines = client.get_klines("BTCUSDT", interval="1h")
+oi = client.get_open_interest("BTCUSDT")
+ls_ratio = client.get_long_short_ratio("BTCUSDT")
+taker = client.get_taker_buy_sell_volume("BTCUSDT")
 
-# Multi-period metrics
-metrics = collect_leverage_metrics("BTCUSDT", periods=["1h", "4h", "1d"])
+# Funding Rate (nowe)
+funding = client.get_funding_rate("BTCUSDT")
+funding_hist = client.get_funding_rate_hist("BTCUSDT", limit=100)
 ```
 
-### FRED + ECB (`sources/fred/`, `sources/ecb/`)
-
-Monetary aggregates M2/M3.
+### Binance Options (`sources/binance/options.py`)
 
 ```python
-from signalvortex.sources import FredClient, EcbClient
+from signalvortex.sources import BinanceOptionsClient
 
-fred = FredClient(api_key="...")
-m2_df = fred.get_series("WM2NS")
-
-ecb = EcbClient()
-m3_df = ecb.get_m3()
+client = BinanceOptionsClient()
+idx = client.get_underlying_index("BTCUSDT")
+pc_ratio = client.get_put_call_ratio("BTCUSDT")
+chain = client.get_option_chain("BTCUSDT")
+iv = client.get_iv_by_expiry("BTCUSDT")
 ```
 
 ### Coinalyze (`sources/coinalyze/`)
-
-Historical OI, L/S ratio, OHLCV, funding rates.
 
 ```python
 from signalvortex.sources import CoinalyzeClient
 
 client = CoinalyzeClient(api_key="...")
 df = client.get_combined_dataframe("BTCUSDT_PERP.A")
-```
-
-### Finnhub (`sources/finnhub/`)
-
-Sentiment (social, news), insider trading, options.
-
-```python
-from signalvortex.sources import FinnhubClient
-
-client = FinnhubClient(api_key="...")
-sentiment = client.get_social_sentiment("AAPL")
-insiders = client.get_insider_transactions("AAPL")
+funding = client.get_funding_rate_history(["BTCUSDT_PERP.A"])
 ```
 
 ---
 
 ## Analytics (Moduły Analityczne)
 
-### Volatility Surface (`analytics/volatility/`)
+### Crypto Modules (`analytics/crypto/`)
 
-```python
-from signalvortex.analytics import build_iv_surface, detect_anomalies
+| Moduł | Plik | Opis |
+|-------|------|------|
+| Funding | `funding.py` | Funding rate analysis |
+| Taker Pressure | `taker_pressure.py` | Buy/sell momentum |
+| Correlation | `correlation.py` | Cross-asset matrix |
+| Liquidation | `liquidation.py` | Cascade risk detector |
+| Confluence | `confluence.py` | Multi-TF (5m/1h/4h) |
 
-# Build SVI-fitted IV surface
-strike_grid, maturity_grid, iv_matrix = build_iv_surface(chain_df)
-
-# Detect anomalies
-anomalies_df = detect_anomalies(chain_df, strike_grid, maturity_grid, iv_matrix)
-```
-
-### Lead-Lag Analysis (`analytics/leadlag/`)
+### Lead-Lag Analysis
 
 ```python
 from signalvortex.analytics import analyze_oi_price_leadlag
 
-result = analyze_oi_price_leadlag(symbol="BTCUSDT", lookback_hours=168)
-print(f"Correlation: {result.correlation}")
-print(f"Best lag: {result.optimal_lag_hours}h")
+result = analyze_oi_price_leadlag("BTCUSDT")
+print(f"OI correlation: {result.oi_correlation}")
 ```
 
-### Monetary Aggregates (`analytics/monetary/`)
+---
+
+## Machine Learning
+
+### GMM Regime Classification (`analytics/ml/regime.py`)
+
+Zastępuje statyczne progi adaptacyjnym Gaussian Mixture Model.
 
 ```python
-from signalvortex.analytics import collect_monetary_aggregates, compute_growth
+from signalvortex.analytics.ml import RegimeClassifier, analyze_regime
 
-data = collect_monetary_aggregates(config)
-growth_df = compute_growth(data)
+# Automatic regime detection
+result = analyze_regime(df, n_regimes=3)
+print(result.current_regime.regime)  # 'high_leverage', 'normal', etc.
+print(result.current_regime.probability)  # 0.95
 ```
 
-### Coinalyze Patterns (`analytics/coinalyze/`)
+**Features:**
+- `funding_rate` — current funding
+- `oi_change` — OI change %
+- `ls_ratio` — long/short ratio
+- `momentum` — 6-period price change
 
-```python
-from signalvortex.analytics.coinalyze import analyze_coinalyze_patterns, run_backtest
+**Regimes:**
+| Reżim | Charakterystyka |
+|-------|-----------------|
+| `high_leverage` | High funding + rising OI |
+| `deleveraging` | Falling OI, negative funding |
+| `accumulation` | Rising OI, neutral funding |
+| `normal` | Balanced conditions |
 
-# Regime detection
-patterns = analyze_coinalyze_patterns("BTCUSDT_PERP.A", api_key="...")
-
-# Backtest leverage strategies
-results = run_backtest("BTCUSDT_PERP.A", start_date=datetime(2021,1,1))
-print(results["leverage_flush_bounce"].win_rate)
-```
-
-### Anomaly Detection (`analytics/anomaly/`)
-
-```python
-from signalvortex.analytics import flag_anomalies
-
-# Hybrid: IsolationForest + heuristics
-flagged_df = flag_anomalies(option_features_df, method="hybrid")
-anomalies = flagged_df[flagged_df["anomaly_flag"]]
-```
-
-### Feature Engineering (`analytics/features/`)
-
-```python
-from signalvortex.analytics import make_option_features, merge_sentiment
-
-# Option features
-features_df = make_option_features(option_df, equity_df)
-
-# Add sentiment
-enriched_df = merge_sentiment(features_df, social_df, news_df, insider_df)
+**CLI:**
+```bash
+signalvortex --crypto BTCUSDT --regime
 ```
 
 ---
@@ -230,53 +133,32 @@ enriched_df = merge_sentiment(features_df, social_df, news_df, insider_df)
 ### Environment Variables (`.env`)
 
 ```bash
-POLYGON_API_KEY=your_key
-FINNHUB_API_KEY=your_key
-FRED_API_KEY=your_key
-COINANALYZE_API_KEY=your_key
-GETDOME_API_KEY=your_key
-MASSIVE_API_KEY=your_key
-SIGNALVORTEX_WEBHOOK_URL=https://...
-SIGNALVORTEX_OUTPUT_DIR=./data
+POLYGON_API_KEY=xxx
+FINNHUB_API_KEY=xxx
+FRED_API_KEY=xxx
+COINALYZE_API_KEY=xxx
 ```
 
-### Programmatic Config
-
-```python
-from signalvortex.core import Config
-
-# Z .env
-config = Config.from_env()
-
-# Walidacja
-missing = config.validate()
-if missing:
-    print(f"Missing keys: {missing}")
-```
+**Binance nie wymaga API key** — publiczne endpointy.
 
 ---
 
-## API Reference
+## CLI Reference
 
-### SourceFactory
-
-| Metoda | Opis |
-|--------|------|
-| `get(name)` | Pobiera/tworzy klienta |
-| `available_sources()` | Lista dostępnych źródeł |
-| `register(name, cls)` | Rejestruje nowe źródło |
-
-### AnalyticsRegistry
-
-| Metoda | Opis |
-|--------|------|
-| `register(name, category)` | Dekorator rejestrujący moduł |
-| `run(name, **kwargs)` | Uruchamia moduł |
-| `list_modules(category)` | Lista modułów |
-| `check_requirements(name, config)` | Sprawdza wymagane klucze |
+| Flag | Opis |
+|------|------|
+| `--crypto SYMBOL` | Podstawowa analiza |
+| `--regime` | 🤖 GMM regime classification |
+| `--binance-funding` | Binance native funding |
+| `--binance-options` | Options IV, P/C ratio |
+| `--taker-pressure` | Buy/sell momentum |
+| `--correlation` | Cross-asset matrix |
+| `--liquidation` | Cascade risk |
+| `--multi-tf` | 5m/1h/4h confluence |
+| `--macro` | M2/M3 growth |
 
 ---
 
 ## Licencja
 
-MIT License © 2024 VortexAnalytica
+MIT © 2024 VortexAnalytica

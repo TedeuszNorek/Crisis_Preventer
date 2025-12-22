@@ -116,16 +116,19 @@ def analyze_taker_pressure(
         
         signal_type = None
         
-        # Bearish divergence: price up but sellers dominant
-        if price_chg > DIVERGENCE_THRESHOLD and ratio < 1 / PRESSURE_EXTREME_THRESHOLD:
+        # Use z-score for adaptive thresholds instead of static PRESSURE_EXTREME_THRESHOLD
+        zscore = row["ratio_zscore"]
+        
+        # Bearish divergence: price up but sellers dominant (z < -1.5)
+        if price_chg > 0.01 and zscore < -1.5:
             signal_type = "bearish_divergence"
-        # Bullish divergence: price down but buyers dominant  
-        elif price_chg < -DIVERGENCE_THRESHOLD and ratio > PRESSURE_EXTREME_THRESHOLD:
+        # Bullish divergence: price down but buyers dominant (z > 1.5)
+        elif price_chg < -0.01 and zscore > 1.5:
             signal_type = "bullish_divergence"
-        # Momentum confirmation
-        elif price_chg > DIVERGENCE_THRESHOLD and ratio > PRESSURE_EXTREME_THRESHOLD:
+        # Momentum confirmation: price and pressure aligned at extremes
+        elif price_chg > 0.01 and zscore > 1.5:
             signal_type = "momentum_confirmation"
-        elif price_chg < -DIVERGENCE_THRESHOLD and ratio < 1 / PRESSURE_EXTREME_THRESHOLD:
+        elif price_chg < -0.01 and zscore < -1.5:
             signal_type = "momentum_confirmation"
         
         if signal_type:
@@ -134,7 +137,7 @@ def analyze_taker_pressure(
                 buy_sell_ratio=ratio,
                 price_change=price_chg,
                 signal_type=signal_type,
-                strength=min(abs(row["ratio_zscore"]) / 2, 1.0),
+                strength=min(abs(zscore) / 2, 1.0),
             ))
     
     # Current state
@@ -162,14 +165,15 @@ def _interval_to_minutes(interval: str) -> int:
     return mapping.get(interval, 5)
 
 
-def _classify_pressure(ratio: float, price_change: float) -> str:
-    """Classify current pressure state."""
-    if ratio > PRESSURE_EXTREME_THRESHOLD:
+def _classify_pressure(ratio: float, price_change: float, zscore: float = 0.0) -> str:
+    """Classify current pressure state using z-score."""
+    # Use z-score for adaptive classification
+    if zscore > 1.5:  # 1.5σ above mean = extreme buyers
         if price_change > 0:
             return "strong_buy_momentum"
         else:
             return "buy_pressure_accumulation"
-    elif ratio < 1 / PRESSURE_EXTREME_THRESHOLD:
+    elif zscore < -1.5:  # 1.5σ below mean = extreme sellers
         if price_change < 0:
             return "strong_sell_momentum"
         else:

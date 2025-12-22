@@ -110,16 +110,19 @@ def analyze_funding_rates(
     df["funding_30d_std"] = df["funding_rate"].rolling(30, min_periods=7).std()
     df["funding_zscore"] = (df["funding_rate"] - df["funding_30d_avg"]) / df["funding_30d_std"].clip(lower=1e-6)
     
-    # Classify signals
+    # Classify signals using ADAPTIVE z-score thresholds (not static)
     def classify_signal(row) -> str:
+        zscore = row["funding_zscore"]
         rate = row["funding_rate"]
-        if rate > FUNDING_EXTREME_HIGH:
+        
+        # Use z-score for adaptive thresholds
+        if zscore > 2.0:  # 2σ above mean = extreme
             return "overleveraged_longs"
-        elif rate < FUNDING_EXTREME_LOW:
+        elif zscore < -1.5:  # 1.5σ below mean = extreme shorts
             return "overleveraged_shorts"
-        elif FUNDING_NEUTRAL_RANGE[0] <= rate <= FUNDING_NEUTRAL_RANGE[1]:
+        elif -0.5 <= zscore <= 0.5:  # Within 0.5σ = neutral
             return "neutral"
-        elif rate > 0:
+        elif zscore > 0:
             return "slight_long_bias"
         else:
             return "slight_short_bias"

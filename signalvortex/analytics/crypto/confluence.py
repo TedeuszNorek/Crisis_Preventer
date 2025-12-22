@@ -139,41 +139,63 @@ def compute_timeframe_signal(
     # 1. OI Signal: Rising OI = confirming trend, Falling OI = exhaustion
     oi_change = latest.get("oi_change", 0)
     price_change = latest.get("price_change", 0)
+    ls_ratio = latest.get("ls_ratio", 1.0)
+    momentum = latest.get("momentum", 0)
     
-    # OI signal based on OI-price relationship
-    if oi_change > 0.02 and price_change > 0:
-        oi_signal = 0.8  # Bullish: rising OI + rising price
-    elif oi_change > 0.02 and price_change < 0:
-        oi_signal = -0.8  # Bearish: rising OI + falling price
-    elif oi_change < -0.02 and price_change > 0:
-        oi_signal = 0.3  # Weakly bullish: falling OI + rising price (short squeeze)
-    elif oi_change < -0.02 and price_change < 0:
-        oi_signal = -0.3  # Weakly bearish: falling OI + falling price (long liquidation)
+    # Compute rolling statistics for z-scores
+    if len(df) > 30:
+        df["oi_mean"] = df["oi_change"].expanding().mean()
+        df["oi_std"] = df["oi_change"].expanding().std()
+        oi_zscore = (oi_change - df["oi_mean"].iloc[-1]) / df["oi_std"].iloc[-1] if df["oi_std"].iloc[-1] > 0 else 0
+        
+        df["ls_mean"] = df["ls_ratio"].expanding().mean()
+        df["ls_std"] = df["ls_ratio"].expanding().std()
+        ls_zscore = (ls_ratio - df["ls_mean"].iloc[-1]) / df["ls_std"].iloc[-1] if df["ls_std"].iloc[-1] > 0 else 0
+        
+        df["mom_mean"] = df["momentum"].expanding().mean()
+        df["mom_std"] = df["momentum"].expanding().std()
+        mom_zscore = (momentum - df["mom_mean"].iloc[-1]) / df["mom_std"].iloc[-1] if df["mom_std"].iloc[-1] > 0 else 0
+    else:
+        # Fallback to defaults if insufficient data
+        oi_zscore = 0
+        ls_zscore = 0
+        mom_zscore = 0
+
+    # 1. OI Signal: Rising OI (+z) = trend confirmation, Falling OI (-z) = exhaustion
+    # OI signal based on OI-price relationship using z-scores
+    if oi_zscore > 1.0 and price_change > 0:
+        oi_signal = 0.8  # Strong trend: High OI growth + Price Up
+    elif oi_zscore > 1.0 and price_change < 0:
+        oi_signal = -0.8  # Strong trend: High OI growth + Price Down
+    elif oi_zscore < -1.0 and price_change > 0:
+        oi_signal = 0.3  # Weak accumulation / Short covering
+    elif oi_zscore < -1.0 and price_change < 0:
+        oi_signal = -0.3  # Long liquidation
     else:
         oi_signal = 0.0
     
-    # 2. L/S Ratio Signal: Contrarian - extreme long = bearish, extreme short = bullish
-    ls_ratio = latest.get("ls_ratio", 1.0)
-    if ls_ratio > 1.5:
-        ls_signal = -0.6  # Too many longs, bearish
-    elif ls_ratio > 1.2:
+    # 2. L/S Ratio Signal: Contrarian logic (z-score based)
+    # High LS ratio (z > 2) = bearish sentiment extreme -> contrarian short
+    # Low LS ratio (z < -2) = bullish sentiment extreme -> contrarian long
+    if ls_zscore > 2.0:
+        ls_signal = -0.7  # Extreme longs
+    elif ls_zscore > 1.0:
         ls_signal = -0.3
-    elif ls_ratio < 0.7:
-        ls_signal = 0.6  # Too many shorts, bullish
-    elif ls_ratio < 0.85:
+    elif ls_zscore < -2.0:
+        ls_signal = 0.7  # Extreme shorts
+    elif ls_zscore < -1.0:
         ls_signal = 0.3
     else:
         ls_signal = 0.0
     
-    # 3. Momentum Signal: Trend-following
-    momentum = latest.get("momentum", 0)
-    if momentum > 0.03:
+    # 3. Momentum Signal: Trend-following (z-score based)
+    if mom_zscore > 1.5:
         momentum_signal = 0.8
-    elif momentum > 0.01:
+    elif mom_zscore > 0.5:
         momentum_signal = 0.4
-    elif momentum < -0.03:
+    elif mom_zscore < -1.5:
         momentum_signal = -0.8
-    elif momentum < -0.01:
+    elif mom_zscore < -0.5:
         momentum_signal = -0.4
     else:
         momentum_signal = 0.0

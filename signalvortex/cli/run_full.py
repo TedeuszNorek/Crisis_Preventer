@@ -130,6 +130,11 @@ Examples:
         action="store_true",
         help="Binance native funding rate (alternative to Coinalyze)",
     )
+    parser.add_argument(
+        "--regime",
+        action="store_true",
+        help="GMM-based regime classification (replaces threshold-based signals)",
+    )
 
     # Output
     parser.add_argument(
@@ -341,6 +346,58 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             results["confluence"] = summary
         except Exception as e:
             LOGGER.error(f"Multi-TF confluence analysis failed: {e}")
+
+    # === GMM Regime Classification ===
+    if args.crypto and getattr(args, 'regime', False):
+        LOGGER.info(f"Analyzing market regime for {args.crypto} using GMM...")
+        try:
+            from signalvortex.sources.binance import BinanceFuturesClient
+            from signalvortex.analytics.ml import analyze_regime, get_regime_summary
+            import pandas as pd
+            
+            fc = BinanceFuturesClient()
+            
+            # Fetch data for regime analysis
+            klines = fc.get_klines(args.crypto, interval="1h", limit=200)
+            oi_hist = fc.get_open_interest_hist(args.crypto, period="1h", limit=200)
+            ls_hist = fc.get_long_short_ratio(args.crypto, period="1h", limit=200)
+            fr_hist = fc.get_funding_rate_hist(args.crypto, limit=30)
+            
+            # Merge data
+            df = klines.copy()
+            df = df.set_index("open_time")
+            
+            if not oi_hist.empty:
+                oi_hist = oi_hist.set_index("timestamp")
+                df["oi"] = oi_hist["sumOpenInterestValue"].reindex(df.index, method="ffill")
+                df["oi_change"] = df["oi"].pct_change()
+            
+            if not ls_hist.empty:
+                ls_hist = ls_hist.set_index("timestamp")
+                df["ls_ratio"] = ls_hist["longShortRatio"].reindex(df.index, method="ffill")
+            
+            # Approximate funding rate (use last known)
+            if not fr_hist.empty:
+                last_funding = fr_hist["fundingRate"].iloc[-1]
+                df["funding_rate"] = last_funding
+            
+            df["momentum"] = df["close"].pct_change(6)
+            df = df.reset_index()
+            
+            # Run GMM regime analysis
+            regime_result = analyze_regime(df, n_regimes=3)
+            summary = get_regime_summary(regime_result)
+            
+            LOGGER.info(f"  Current Regime: {summary['current_regime'].upper()}")
+            LOGGER.info(f"  Confidence: {summary['confidence']:.0%}")
+            for regime, prob in summary.get('all_probabilities', {}).items():
+                LOGGER.info(f"    {regime}: {prob:.0%}")
+            LOGGER.info(f"  Transitions (24h): {summary['transitions_24h']}")
+            LOGGER.info(f"  {summary['interpretation']}")
+            
+            results["regime"] = summary
+        except Exception as e:
+            LOGGER.error(f"GMM regime analysis failed: {e}")
 
     # === Binance Native Funding Rate ===
     if args.crypto and getattr(args, 'binance_funding', False):
