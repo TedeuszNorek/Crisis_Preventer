@@ -120,6 +120,16 @@ Examples:
         action="store_true",
         help="Multi-timeframe confluence analysis (5m, 1h, 4h)",
     )
+    parser.add_argument(
+        "--binance-options",
+        action="store_true",
+        help="Binance Options analysis (IV, Greeks, P/C ratio) - uses --crypto symbol",
+    )
+    parser.add_argument(
+        "--binance-funding",
+        action="store_true",
+        help="Binance native funding rate (alternative to Coinalyze)",
+    )
 
     # Output
     parser.add_argument(

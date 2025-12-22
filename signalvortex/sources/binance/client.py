@@ -211,3 +211,81 @@ class BinanceFuturesClient(BaseClient):
                     df[col] = df[col].astype(float)
 
         return df
+
+    def get_funding_rate(self, symbol: str) -> Dict[str, Any]:
+        """Get current funding rate for a symbol.
+
+        Args:
+            symbol: Trading pair (e.g., 'BTCUSDT').
+
+        Returns:
+            Dict with symbol, markPrice, fundingRate, fundingTime, etc.
+        """
+        data = self.get("/fapi/v1/premiumIndex", params={"symbol": symbol.upper()})
+        return data
+
+    def get_funding_rate_hist(
+        self,
+        symbol: str,
+        limit: int = 100,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """Get historical funding rates.
+
+        Args:
+            symbol: Trading pair.
+            limit: Number of records (max 1000).
+            start_time: Start time in milliseconds.
+            end_time: End time in milliseconds.
+
+        Returns:
+            DataFrame with fundingTime, fundingRate.
+        """
+        params: Dict[str, Any] = {
+            "symbol": symbol.upper(),
+            "limit": min(limit, 1000),
+        }
+        if start_time:
+            params["startTime"] = start_time
+        if end_time:
+            params["endTime"] = end_time
+
+        data = self.get("/fapi/v1/fundingRate", params=params)
+        df = pd.DataFrame(data)
+
+        if not df.empty:
+            df["fundingTime"] = pd.to_datetime(df["fundingTime"], unit="ms")
+            df["fundingRate"] = df["fundingRate"].astype(float)
+            df = df.rename(columns={"fundingTime": "timestamp"})
+
+        return df
+
+    def get_mark_price(self, symbol: Optional[str] = None) -> pd.DataFrame:
+        """Get mark price and funding rate for symbol(s).
+
+        Args:
+            symbol: Optional trading pair. If None, returns all symbols.
+
+        Returns:
+            DataFrame with mark price, index price, funding rate.
+        """
+        params = {}
+        if symbol:
+            params["symbol"] = symbol.upper()
+
+        data = self.get("/fapi/v1/premiumIndex", params=params or None)
+
+        if isinstance(data, dict):
+            data = [data]
+
+        df = pd.DataFrame(data)
+
+        if not df.empty:
+            df["time"] = pd.to_datetime(df["time"], unit="ms")
+            for col in ["markPrice", "indexPrice", "lastFundingRate"]:
+                if col in df.columns:
+                    df[col] = df[col].astype(float)
+
+        return df
+
