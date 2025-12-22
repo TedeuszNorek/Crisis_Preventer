@@ -94,6 +94,32 @@ Examples:
         default=300,
         help="Number of data points for lead-lag analysis (default: 300)",
     )
+    parser.add_argument(
+        "--funding",
+        action="store_true",
+        help="Include funding rate analysis (requires Coinalyze API)",
+    )
+    parser.add_argument(
+        "--taker-pressure",
+        action="store_true",
+        help="Include taker buy/sell pressure analysis",
+    )
+    parser.add_argument(
+        "--correlation",
+        nargs="*",
+        metavar="SYMBOL",
+        help="Cross-asset correlation analysis (e.g., --correlation BTCUSDT ETHUSDT SOLUSDT)",
+    )
+    parser.add_argument(
+        "--liquidation",
+        action="store_true",
+        help="Include liquidation cascade risk analysis",
+    )
+    parser.add_argument(
+        "--multi-tf",
+        action="store_true",
+        help="Multi-timeframe confluence analysis (5m, 1h, 4h)",
+    )
 
     # Output
     parser.add_argument(
@@ -215,8 +241,96 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 "sample_count": result.sample_count,
             }
 
+            # Taker Pressure Analysis
+            if args.taker_pressure:
+                LOGGER.info(f"Analyzing taker pressure for {args.crypto}...")
+                from signalvortex.analytics.crypto import analyze_taker_pressure, get_pressure_summary
+                pressure = analyze_taker_pressure(args.crypto, interval=args.interval, client=client)
+                summary = get_pressure_summary(pressure)
+                LOGGER.info(f"  Current ratio: {summary['current_buy_sell_ratio']}")
+                LOGGER.info(f"  Signal: {summary['signal']}")
+                LOGGER.info(f"  {summary['interpretation']}")
+                results["taker_pressure"] = summary
+
         except Exception as e:
             LOGGER.error(f"Crypto analysis failed: {e}")
+
+    # === Funding Rate Analysis ===
+    if args.crypto and getattr(args, 'funding', False):
+        if not config.coinalyze.api_key:
+            LOGGER.error("COINALYZE_API_KEY required for funding analysis")
+        else:
+            LOGGER.info(f"Analyzing funding rates for {args.crypto}...")
+            try:
+                from signalvortex.analytics.crypto import analyze_funding_rates, get_funding_summary
+                # Convert symbol format: BTCUSDT -> BTCUSDT_PERP.A
+                coinalyze_symbol = f"{args.crypto}_PERP.A" if not args.crypto.endswith(".A") else args.crypto
+                funding = analyze_funding_rates(coinalyze_symbol, api_key=config.coinalyze.api_key)
+                summary = get_funding_summary(funding)
+                LOGGER.info(f"  Current rate: {summary['current_funding_rate']}")
+                LOGGER.info(f"  Signal: {summary['signal']}")
+                LOGGER.info(f"  {summary['interpretation']}")
+                results["funding"] = summary
+            except Exception as e:
+                LOGGER.error(f"Funding analysis failed: {e}")
+
+    # === Cross-Asset Correlation Analysis ===
+    if getattr(args, 'correlation', None) is not None:
+        symbols = args.correlation if args.correlation else ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+        if len(symbols) < 2:
+            symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+        LOGGER.info(f"Analyzing cross-asset correlation for {', '.join(symbols)}...")
+        try:
+            from signalvortex.analytics.crypto import analyze_cross_asset_correlation, get_correlation_summary
+            correlation_result = analyze_cross_asset_correlation(symbols, interval=args.interval)
+            summary = get_correlation_summary(correlation_result)
+            LOGGER.info(f"  Regime: {summary['regime']}")
+            for pair, corr in summary.get('current_correlations', {}).items():
+                LOGGER.info(f"  {pair}: {corr}")
+            if summary['breakdowns']:
+                LOGGER.info(f"  ⚠️ {len(summary['breakdowns'])} correlation breakdown(s) detected")
+            LOGGER.info(f"  {summary['interpretation']}")
+            results["correlation"] = summary
+        except Exception as e:
+            LOGGER.error(f"Correlation analysis failed: {e}")
+
+    # === Liquidation Cascade Risk Analysis ===
+    if args.crypto and getattr(args, 'liquidation', False):
+        LOGGER.info(f"Analyzing liquidation cascade risk for {args.crypto}...")
+        try:
+            from signalvortex.analytics.crypto import analyze_liquidation_risk, get_liquidation_summary
+            liq_result = analyze_liquidation_risk(
+                args.crypto,
+                interval=args.interval,
+                coinalyze_api_key=config.coinalyze.api_key if config.coinalyze.api_key else None,
+            )
+            summary = get_liquidation_summary(liq_result)
+            LOGGER.info(f"  Risk Score: {summary['risk_score']} ({summary['risk_level']})")
+            LOGGER.info(f"  Direction: {summary['direction']}")
+            LOGGER.info(f"  OI Change 24h: {summary['oi_change_24h']}")
+            LOGGER.info(f"  {summary['interpretation']}")
+            results["liquidation"] = summary
+        except Exception as e:
+            LOGGER.error(f"Liquidation analysis failed: {e}")
+
+    # === Multi-Timeframe Confluence Analysis ===
+    if args.crypto and getattr(args, 'multi_tf', False):
+        LOGGER.info(f"Analyzing multi-timeframe confluence for {args.crypto}...")
+        try:
+            from signalvortex.analytics.crypto import analyze_multi_timeframe, get_confluence_summary
+            confluence_result = analyze_multi_timeframe(args.crypto, timeframes=["5m", "1h", "4h"])
+            summary = get_confluence_summary(confluence_result)
+            
+            LOGGER.info(f"  Confluence Score: {summary['confluence_score']} ({summary['confluence_strength']})")
+            LOGGER.info(f"  Overall Bias: {summary['overall_bias'].upper()}")
+            LOGGER.info(f"  Aligned TFs: {summary['aligned_timeframes']}")
+            for tf, details in summary.get('timeframes', {}).items():
+                emoji = "🟢" if details['bias'] == 'bullish' else "🔴" if details['bias'] == 'bearish' else "⚪"
+                LOGGER.info(f"    {tf}: {emoji} {details['bias']} ({details['strength']:.2f})")
+            LOGGER.info(f"  {summary['interpretation']}")
+            results["confluence"] = summary
+        except Exception as e:
+            LOGGER.error(f"Multi-TF confluence analysis failed: {e}")
 
     # === Macro Analysis ===
     if args.macro:

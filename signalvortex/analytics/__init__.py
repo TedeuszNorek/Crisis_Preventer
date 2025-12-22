@@ -7,6 +7,12 @@ from signalvortex.analytics.coinalyze import run_backtest, analyze_coinalyze_pat
 from signalvortex.analytics.features import make_option_features
 from signalvortex.analytics.features.sentiment import merge_sentiment
 from signalvortex.analytics.anomaly import flag_anomalies
+from signalvortex.analytics.crypto import (
+    analyze_funding_rates,
+    analyze_taker_pressure,
+    get_funding_summary,
+    get_pressure_summary,
+)
 
 __all__ = [
     "build_iv_surface",
@@ -19,5 +25,11 @@ __all__ = [
     "make_option_features",
     "merge_sentiment",
     "flag_anomalies",
+    # Crypto
+    "analyze_funding_rates",
+    "analyze_taker_pressure",
+    "get_funding_summary",
+    "get_pressure_summary",
 ]
+
 
