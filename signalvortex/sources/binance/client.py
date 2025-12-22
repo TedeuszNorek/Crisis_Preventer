@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from signalvortex.core.http_client import BaseClient
+from signalvortex.core.decorators import retry
+from signalvortex.core.errors import DataSourceError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -27,10 +29,15 @@ class BinanceFuturesClient(BaseClient):
             rate_limit=60,  # Generous limit for public endpoints
         )
 
+    @retry(exceptions=(Exception,), tries=3, delay=1.0)
     def ping(self) -> Dict[str, Any]:
         """Test connectivity to the API."""
-        return self.get("/fapi/v1/ping")
+        try:
+            return self.get("/fapi/v1/ping")
+        except Exception as e:
+            raise DataSourceError("Failed to ping Binance Futures API", original_error=e)
 
+    @retry(exceptions=(Exception,), tries=3, delay=1.0)
     def get_klines(
         self,
         symbol: str,
@@ -51,43 +58,47 @@ class BinanceFuturesClient(BaseClient):
         Returns:
             DataFrame with OHLCV data.
         """
-        params: Dict[str, Any] = {
-            "symbol": symbol.upper(),
-            "interval": interval,
-            "limit": min(limit, 1500),
-        }
-        if start_time:
-            params["startTime"] = start_time
-        if end_time:
-            params["endTime"] = end_time
+        try:
+            params: Dict[str, Any] = {
+                "symbol": symbol.upper(),
+                "interval": interval,
+                "limit": min(limit, 1500),
+            }
+            if start_time:
+                params["startTime"] = start_time
+            if end_time:
+                params["endTime"] = end_time
 
-        data = self.get("/fapi/v1/klines", params=params)
+            data = self.get("/fapi/v1/klines", params=params)
 
-        df = pd.DataFrame(
-            data,
-            columns=[
-                "open_time",
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume",
-                "close_time",
-                "quote_volume",
-                "trades",
-                "taker_buy_volume",
-                "taker_buy_quote_volume",
-                "ignore",
-            ],
-        )
+            df = pd.DataFrame(
+                data,
+                columns=[
+                    "open_time",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "close_time",
+                    "quote_volume",
+                    "trades",
+                    "taker_buy_volume",
+                    "taker_buy_quote_volume",
+                    "ignore",
+                ],
+            )
 
-        df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
-        df["close_time"] = pd.to_datetime(df["close_time"], unit="ms")
-        for col in ["open", "high", "low", "close", "volume"]:
-            df[col] = df[col].astype(float)
+            df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
+            df["close_time"] = pd.to_datetime(df["close_time"], unit="ms")
+            for col in ["open", "high", "low", "close", "volume"]:
+                df[col] = df[col].astype(float)
 
-        return df
+            return df
+        except Exception as e:
+            raise DataSourceError(f"Failed to fetch klines for {symbol}", original_error=e)
 
+    @retry(exceptions=(Exception,), tries=3, delay=1.0)
     def get_open_interest(self, symbol: str) -> Dict[str, Any]:
         """Get current open interest for a symbol.
 
@@ -97,8 +108,12 @@ class BinanceFuturesClient(BaseClient):
         Returns:
             Dict with openInterest, symbol, and time.
         """
-        return self.get("/fapi/v1/openInterest", params={"symbol": symbol.upper()})
+        try:
+            return self.get("/fapi/v1/openInterest", params={"symbol": symbol.upper()})
+        except Exception as e:
+            raise DataSourceError(f"Failed to fetch OI for {symbol}", original_error=e)
 
+    @retry(exceptions=(Exception,), tries=3, delay=1.0)
     def get_open_interest_hist(
         self,
         symbol: str,
@@ -119,26 +134,30 @@ class BinanceFuturesClient(BaseClient):
         Returns:
             DataFrame with timestamp, sumOpenInterest, sumOpenInterestValue.
         """
-        params: Dict[str, Any] = {
-            "symbol": symbol.upper(),
-            "period": period,
-            "limit": min(limit, 500),
-        }
-        if start_time:
-            params["startTime"] = start_time
-        if end_time:
-            params["endTime"] = end_time
+        try:
+            params: Dict[str, Any] = {
+                "symbol": symbol.upper(),
+                "period": period,
+                "limit": min(limit, 500),
+            }
+            if start_time:
+                params["startTime"] = start_time
+            if end_time:
+                params["endTime"] = end_time
 
-        data = self.get("/futures/data/openInterestHist", params=params)
-        df = pd.DataFrame(data)
+            data = self.get("/futures/data/openInterestHist", params=params)
+            df = pd.DataFrame(data)
 
-        if not df.empty:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-            df["sumOpenInterest"] = df["sumOpenInterest"].astype(float)
-            df["sumOpenInterestValue"] = df["sumOpenInterestValue"].astype(float)
+            if not df.empty:
+                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+                df["sumOpenInterest"] = df["sumOpenInterest"].astype(float)
+                df["sumOpenInterestValue"] = df["sumOpenInterestValue"].astype(float)
 
-        return df
+            return df
+        except Exception as e:
+            raise DataSourceError(f"Failed to fetch OI history for {symbol}", original_error=e)
 
+    @retry(exceptions=(Exception,), tries=3, delay=1.0)
     def get_long_short_ratio(
         self,
         symbol: str,
@@ -159,26 +178,30 @@ class BinanceFuturesClient(BaseClient):
         Returns:
             DataFrame with timestamp, longShortRatio, longAccount, shortAccount.
         """
-        params: Dict[str, Any] = {
-            "symbol": symbol.upper(),
-            "period": period,
-            "limit": min(limit, 500),
-        }
-        if start_time:
-            params["startTime"] = start_time
-        if end_time:
-            params["endTime"] = end_time
+        try:
+            params: Dict[str, Any] = {
+                "symbol": symbol.upper(),
+                "period": period,
+                "limit": min(limit, 500),
+            }
+            if start_time:
+                params["startTime"] = start_time
+            if end_time:
+                params["endTime"] = end_time
 
-        data = self.get("/futures/data/topLongShortAccountRatio", params=params)
-        df = pd.DataFrame(data)
+            data = self.get("/futures/data/topLongShortAccountRatio", params=params)
+            df = pd.DataFrame(data)
 
-        if not df.empty:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-            for col in ["longShortRatio", "longAccount", "shortAccount"]:
-                df[col] = df[col].astype(float)
+            if not df.empty:
+                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+                for col in ["longShortRatio", "longAccount", "shortAccount"]:
+                    df[col] = df[col].astype(float)
 
-        return df
+            return df
+        except Exception as e:
+            raise DataSourceError(f"Failed to fetch L/S ratio for {symbol}", original_error=e)
 
+    @retry(exceptions=(Exception,), tries=3, delay=1.0)
     def get_taker_buy_sell_volume(
         self,
         symbol: str,
@@ -195,23 +218,27 @@ class BinanceFuturesClient(BaseClient):
         Returns:
             DataFrame with buy/sell volumes and ratios.
         """
-        params: Dict[str, Any] = {
-            "symbol": symbol.upper(),
-            "period": period,
-            "limit": min(limit, 500),
-        }
+        try:
+            params: Dict[str, Any] = {
+                "symbol": symbol.upper(),
+                "period": period,
+                "limit": min(limit, 500),
+            }
 
-        data = self.get("/futures/data/takerlongshortRatio", params=params)
-        df = pd.DataFrame(data)
+            data = self.get("/futures/data/takerlongshortRatio", params=params)
+            df = pd.DataFrame(data)
 
-        if not df.empty:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-            for col in ["buySellRatio", "buyVol", "sellVol"]:
-                if col in df.columns:
-                    df[col] = df[col].astype(float)
+            if not df.empty:
+                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+                for col in ["buySellRatio", "buyVol", "sellVol"]:
+                    if col in df.columns:
+                        df[col] = df[col].astype(float)
 
-        return df
+            return df
+        except Exception as e:
+            raise DataSourceError(f"Failed to fetch taker volume for {symbol}", original_error=e)
 
+    @retry(exceptions=(Exception,), tries=3, delay=1.0)
     def get_funding_rate(self, symbol: str) -> Dict[str, Any]:
         """Get current funding rate for a symbol.
 
@@ -221,9 +248,15 @@ class BinanceFuturesClient(BaseClient):
         Returns:
             Dict with symbol, markPrice, fundingRate, fundingTime, etc.
         """
-        data = self.get("/fapi/v1/premiumIndex", params={"symbol": symbol.upper()})
-        return data
+        try:
+            data = self.get("/fapi/v1/premiumIndex", params={"symbol": symbol.upper()})
+            return data
+        except Exception as e:
+            # Not raising error here as funding might not be available for all pairs
+            LOGGER.warning(f"Could not fetch premium index for {symbol}: {e}")
+            return {}
 
+    @retry(exceptions=(Exception,), tries=3, delay=1.0)
     def get_funding_rate_hist(
         self,
         symbol: str,
@@ -242,24 +275,27 @@ class BinanceFuturesClient(BaseClient):
         Returns:
             DataFrame with fundingTime, fundingRate.
         """
-        params: Dict[str, Any] = {
-            "symbol": symbol.upper(),
-            "limit": min(limit, 1000),
-        }
-        if start_time:
-            params["startTime"] = start_time
-        if end_time:
-            params["endTime"] = end_time
+        try:
+            params: Dict[str, Any] = {
+                "symbol": symbol.upper(),
+                "limit": min(limit, 1000),
+            }
+            if start_time:
+                params["startTime"] = start_time
+            if end_time:
+                params["endTime"] = end_time
 
-        data = self.get("/fapi/v1/fundingRate", params=params)
-        df = pd.DataFrame(data)
+            data = self.get("/fapi/v1/fundingRate", params=params)
+            df = pd.DataFrame(data)
 
-        if not df.empty:
-            df["fundingTime"] = pd.to_datetime(df["fundingTime"], unit="ms")
-            df["fundingRate"] = df["fundingRate"].astype(float)
-            df = df.rename(columns={"fundingTime": "timestamp"})
+            if not df.empty:
+                df["fundingTime"] = pd.to_datetime(df["fundingTime"], unit="ms")
+                df["fundingRate"] = df["fundingRate"].astype(float)
+                df = df.rename(columns={"fundingTime": "timestamp"})
 
-        return df
+            return df
+        except Exception as e:
+            raise DataSourceError(f"Failed to fetch funding history for {symbol}", original_error=e)
 
     def get_mark_price(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """Get mark price and funding rate for symbol(s).
