@@ -342,6 +342,85 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         except Exception as e:
             LOGGER.error(f"Multi-TF confluence analysis failed: {e}")
 
+    # === Binance Native Funding Rate ===
+    if args.crypto and getattr(args, 'binance_funding', False):
+        LOGGER.info(f"Fetching Binance native funding rate for {args.crypto}...")
+        try:
+            from signalvortex.sources.binance import BinanceFuturesClient
+            fc = BinanceFuturesClient()
+            fr = fc.get_funding_rate(args.crypto)
+            fr_hist = fc.get_funding_rate_hist(args.crypto, limit=30)
+            
+            current_rate = float(fr.get("lastFundingRate", 0))
+            avg_rate = fr_hist["fundingRate"].mean() if not fr_hist.empty else current_rate
+            
+            LOGGER.info(f"  Current Rate: {current_rate:.4%} (per 8h)")
+            LOGGER.info(f"  30-day Avg: {avg_rate:.4%}")
+            LOGGER.info(f"  APR: {current_rate * 3 * 365:.1%}")
+            
+            signal = "neutral"
+            if current_rate > 0.0005:
+                signal = "overleveraged_longs"
+                LOGGER.info("  ⚠️ HIGH FUNDING: Longs paying premium")
+            elif current_rate < -0.0003:
+                signal = "overleveraged_shorts"
+                LOGGER.info("  ⚠️ NEGATIVE FUNDING: Shorts paying premium")
+            else:
+                LOGGER.info("  ✅ NEUTRAL: Balanced funding")
+            
+            results["binance_funding"] = {
+                "symbol": args.crypto,
+                "current_rate": f"{current_rate:.4%}",
+                "avg_30d": f"{avg_rate:.4%}",
+                "apr": f"{current_rate * 3 * 365:.1%}",
+                "signal": signal,
+            }
+        except Exception as e:
+            LOGGER.error(f"Binance funding rate failed: {e}")
+
+    # === Binance Options Analysis ===
+    if args.crypto and getattr(args, 'binance_options', False):
+        # Extract base asset from symbol (BTCUSDT -> BTC)
+        underlying = args.crypto.upper().replace("USDT", "").replace("USD", "")
+        LOGGER.info(f"Analyzing Binance Options for {underlying}...")
+        try:
+            from signalvortex.sources.binance import BinanceOptionsClient
+            oc = BinanceOptionsClient()
+            
+            # Index price
+            idx = oc.get_underlying_index(f"{underlying}USDT")
+            index_price = float(idx.get("indexPrice", 0))
+            LOGGER.info(f"  Index Price: ${index_price:,.2f}")
+            
+            # Put/Call ratio
+            pc_ratio = oc.get_put_call_ratio(f"{underlying}USDT")
+            LOGGER.info(f"  Put/Call Ratio: {pc_ratio.get('put_call_ratio', 0):.2f}")
+            LOGGER.info(f"  Calls: {pc_ratio.get('call_count', 0)} contracts")
+            LOGGER.info(f"  Puts: {pc_ratio.get('put_count', 0)} contracts")
+            
+            # IV by expiry
+            iv_df = oc.get_iv_by_expiry(f"{underlying}USDT")
+            if not iv_df.empty:
+                LOGGER.info("  IV by Expiry:")
+                for _, row in iv_df.head(5).iterrows():
+                    LOGGER.info(f"    {row['expiry']}: {row['avg_iv']:.1%} ({row['contract_count']} contracts)")
+            
+            # Option chain sample
+            chain = oc.get_option_chain(f"{underlying}USDT")
+            chain_count = len(chain) if not chain.empty else 0
+            LOGGER.info(f"  Option Chain: {chain_count} contracts")
+            
+            results["binance_options"] = {
+                "underlying": underlying,
+                "index_price": index_price,
+                "put_call_ratio": pc_ratio.get("put_call_ratio", 0),
+                "call_count": pc_ratio.get("call_count", 0),
+                "put_count": pc_ratio.get("put_count", 0),
+                "chain_count": chain_count,
+            }
+        except Exception as e:
+            LOGGER.error(f"Binance options analysis failed: {e}")
+
     # === Macro Analysis ===
     if args.macro:
         if not config.fred.api_key:

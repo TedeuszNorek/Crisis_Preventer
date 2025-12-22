@@ -120,32 +120,32 @@ class BinanceOptionsClient(BaseClient):
         return df
 
     def get_open_interest(self, underlying: str, expiration: Optional[str] = None) -> pd.DataFrame:
-        """Get option open interest.
+        """Get option open interest from mark prices.
 
         Args:
             underlying: Underlying symbol (e.g., 'BTCUSDT').
             expiration: Optional expiration date (e.g., '240329').
 
         Returns:
-            DataFrame with sumOpenInterest, sumOpenInterestUsd by option type.
+            DataFrame with symbol, markIV, and other data.
         """
-        params = {"underlyingAsset": underlying.upper().replace("USDT", "")}
-        if expiration:
-            params["expiration"] = expiration
-
-        data = self.get("/eapi/v1/openInterest", params=params)
-
-        if isinstance(data, dict):
-            data = [data]
-
-        df = pd.DataFrame(data)
-
-        if not df.empty:
-            for col in ["sumOpenInterest", "sumOpenInterestUsd"]:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        return df
+        # Use mark prices endpoint which doesn't require expiration
+        try:
+            mark_df = self.get_mark_price()
+            if mark_df.empty:
+                return pd.DataFrame()
+            
+            # Filter by underlying
+            underlying_base = underlying.upper().replace("USDT", "")
+            mark_df = mark_df[mark_df["symbol"].str.startswith(underlying_base)]
+            
+            if expiration:
+                mark_df = mark_df[mark_df["symbol"].str.contains(expiration)]
+            
+            return mark_df
+        except Exception as e:
+            LOGGER.warning(f"Failed to get options data for {underlying}: {e}")
+            return pd.DataFrame()
 
     def get_option_chain(
         self,
@@ -350,26 +350,36 @@ class BinanceOptionsClient(BaseClient):
         return pd.DataFrame()
 
     def get_put_call_ratio(self, underlying: str = "BTCUSDT") -> Dict[str, float]:
-        """Calculate put/call ratio from open interest.
+        """Calculate put/call ratio from option chain.
 
         Args:
             underlying: Underlying symbol.
 
         Returns:
-            Dict with put_oi, call_oi, put_call_ratio.
+            Dict with put_count, call_count, put_call_ratio.
         """
-        oi_df = self.get_open_interest(underlying)
-
-        if oi_df.empty:
-            return {"put_oi": 0.0, "call_oi": 0.0, "put_call_ratio": 0.0}
-
-        call_oi = oi_df[oi_df["symbol"].str.endswith("-C")]["sumOpenInterestUsd"].sum() if "symbol" in oi_df.columns else 0
-        put_oi = oi_df[oi_df["symbol"].str.endswith("-P")]["sumOpenInterestUsd"].sum() if "symbol" in oi_df.columns else 0
-
-        ratio = put_oi / call_oi if call_oi > 0 else 0.0
-
-        return {
-            "call_oi_usd": call_oi,
-            "put_oi_usd": put_oi,
-            "put_call_ratio": ratio,
-        }
+        try:
+            mark_df = self.get_mark_price()
+            if mark_df.empty:
+                return {"call_count": 0, "put_count": 0, "put_call_ratio": 0.0}
+            
+            # Filter by underlying
+            underlying_base = underlying.upper().replace("USDT", "")
+            mark_df = mark_df[mark_df["symbol"].str.startswith(underlying_base)]
+            
+            if mark_df.empty:
+                return {"call_count": 0, "put_count": 0, "put_call_ratio": 0.0}
+            
+            call_count = len(mark_df[mark_df["symbol"].str.endswith("-C")])
+            put_count = len(mark_df[mark_df["symbol"].str.endswith("-P")])
+            
+            ratio = put_count / call_count if call_count > 0 else 0.0
+            
+            return {
+                "call_count": call_count,
+                "put_count": put_count,
+                "put_call_ratio": round(ratio, 2),
+            }
+        except Exception as e:
+            LOGGER.warning(f"Failed to calculate P/C ratio: {e}")
+            return {"call_count": 0, "put_count": 0, "put_call_ratio": 0.0}

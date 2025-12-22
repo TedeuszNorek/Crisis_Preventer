@@ -1,11 +1,6 @@
 # SignalVortex
 
-**Multi-source market analytics platform** — zunifikowana platforma analizy rynków łącząca:
-
-- 🎯 **Equity Options**: IV surface (SVI), anomaly detection, feature engineering
-- 📈 **Crypto Futures**: Open interest, long/short ratios, lead-lag analysis
-- 💰 **Monetary Aggregates**: M2/M3 growth correlation (FRED, ECB)
-- 🔮 **Prediction Markets**: Polymarket overlay
+**Multi-source market analytics platform** — zunifikowana platforma analizy rynków.
 
 ## 🚀 Quick Start
 
@@ -13,131 +8,127 @@
 cd signalvortex
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-
 cp .env.template .env  # Uzupełnij API keys
-signalvortex --symbol AAPL --crypto BTCUSDT --macro
+
+# Pełna analiza
+signalvortex --crypto BTCUSDT --funding --taker-pressure --correlation --liquidation --multi-tf
+```
+
+## 💻 CLI — Wszystkie Komendy
+
+### Crypto Analysis
+
+```bash
+# Podstawowa analiza (OI, L/S ratio, lead-lag)
+signalvortex --crypto BTCUSDT
+
+# Binance Funding Rate (natywny, bez Coinalyze)
+signalvortex --crypto BTCUSDT --binance-funding
+
+# Binance Options (IV, Greeks, P/C ratio)
+signalvortex --crypto BTCUSDT --binance-options
+
+# Taker Buy/Sell Pressure
+signalvortex --crypto BTCUSDT --taker-pressure
+
+# Funding Rate via Coinalyze (wymaga API key)
+signalvortex --crypto BTCUSDT --funding
+
+# Cross-Asset Correlation Matrix
+signalvortex --correlation BTCUSDT ETHUSDT SOLUSDT
+
+# Liquidation Cascade Detector
+signalvortex --crypto BTCUSDT --liquidation
+
+# Multi-Timeframe Confluence (5m, 1h, 4h)
+signalvortex --crypto BTCUSDT --multi-tf
+```
+
+### Options Analysis (Equity)
+
+```bash
+# IV Surface + Anomaly Detection (wymaga Polygon API)
+signalvortex --symbol AAPL
+
+# Custom grid
+signalvortex --symbol AAPL --strike-points 50 --maturity-points 50
+```
+
+### Macro Analysis
+
+```bash
+# Monetary Aggregates (M2/M3)
+signalvortex --macro
+
+# Combined
+signalvortex --crypto BTCUSDT --macro
+```
+
+### Pełna Analiza
+
+```bash
+# Wszystkie moduły crypto
+signalvortex --crypto BTCUSDT \
+    --binance-funding \
+    --binance-options \
+    --taker-pressure \
+    --funding \
+    --correlation BTCUSDT ETHUSDT SOLUSDT \
+    --liquidation \
+    --multi-tf
+
+# Crypto + Macro
+signalvortex --crypto BTCUSDT --macro --funding --taker-pressure
 ```
 
 ## 📁 Architektura
 
 ```
 signalvortex/
-├── core/                    # Wzorce projektowe
-│   ├── config.py           # Zunifikowana konfiguracja
-│   ├── http_client.py      # Base HTTP client (retries, rate limiting)
-│   ├── factory.py          # Factory Pattern — tworzenie klientów
-│   └── registry.py         # Registry Pattern — moduły analityczne
-│
-├── sources/                 # 9 providerów danych
-│   ├── polygon/            # Options snapshots, IV
-│   ├── binance/            # Futures OI, L/S ratios, archive
-│   ├── fred/               # US M2
-│   ├── ecb/                # Euro M2/M3
-│   ├── finnhub/            # Sentiment, insider, options
-│   ├── coinalyze/          # OI history, patterns
-│   ├── getdome/            # Polymarket overlay
-│   ├── massive/            # OHLC fallback
-│   └── gamma/              # Polymarket direct
-│
-├── analytics/               # 7 modułów analitycznych
-│   ├── volatility/         # IV surface, SVI fitting
-│   ├── leadlag/            # OI vs price correlation
-│   ├── monetary/           # M2/M3 growth rates
-│   ├── coinalyze/          # Regime patterns, backtest
-│   ├── features/           # Feature engineering
-│   └── anomaly/            # IsolationForest + heuristics
-│
-├── reporting/              # Insights, webhooks
+├── core/                    # Factory, Registry, Config
+├── sources/                 # 10 providerów danych
+│   ├── binance/            # Futures + Options
+│   ├── coinalyze/          # OI, L/S, Funding
+│   ├── polygon/            # Equity Options
+│   └── ...
+├── analytics/              
+│   ├── crypto/             # 5 modułów
+│   │   ├── funding.py      # Funding rate analysis
+│   │   ├── taker_pressure.py
+│   │   ├── correlation.py  # Cross-asset matrix
+│   │   ├── liquidation.py  # Cascade detector
+│   │   └── confluence.py   # Multi-TF
+│   ├── volatility/         # IV surface
+│   ├── leadlag/            # OI-price correlation
+│   └── monetary/           # M2/M3
 └── cli/                    # Entry points
-```
-
-## 🔧 Wzorce Projektowe
-
-### Factory Pattern — `SourceFactory`
-
-```python
-from signalvortex.core import SourceFactory, Config
-
-config = Config.from_env()
-factory = SourceFactory(config)
-
-# Tworzenie klientów przez fabrykę
-polygon = factory.get("polygon")
-binance = factory.get("binance")
-
-# Dostępne źródła
-print(factory.available_sources())
-# ['polygon', 'binance', 'fred', 'ecb', 'coinalyze', 'finnhub', 'getdome', 'massive', 'gamma']
-```
-
-### Registry Pattern — `AnalyticsRegistry`
-
-```python
-from signalvortex.core import AnalyticsRegistry, AnalyticsCategory
-
-# Lista modułów
-modules = AnalyticsRegistry.list_modules()
-# ['iv_surface', 'vol_anomalies', 'oi_leadlag', 'monetary', ...]
-
-# Uruchomienie analizy
-result = AnalyticsRegistry.run("iv_surface", symbol="AAPL", config=config)
 ```
 
 ## 📊 Moduły Analityczne
 
-| Moduł | Kategoria | Opis | API Keys |
-|-------|-----------|------|----------|
-| `iv_surface` | Volatility | IV surface z SVI fitting | Polygon |
-| `vol_anomalies` | Volatility | Wykrywanie anomalii IV | Polygon |
-| `oi_leadlag` | Crypto | OI vs price lead-lag | — |
-| `monetary` | Macro | M2/M3 growth rates | FRED |
-| `coinalyze_patterns` | Crypto | Regime detection (OI, L/S) | Coinalyze |
-| `coinalyze_backtest` | Crypto | Leverage strategies backtest | Coinalyze |
-| `option_anomalies` | Anomaly | IsolationForest + heuristics | — |
+| Moduł | CLI Flag | Opis |
+|-------|----------|------|
+| Lead-Lag | `--crypto` | OI vs price correlation |
+| Funding Rate | `--binance-funding` | Binance native funding |
+| Funding (Coinalyze) | `--funding` | Historical analysis |
+| Taker Pressure | `--taker-pressure` | Buy/sell momentum |
+| Correlation | `--correlation` | Cross-asset matrix |
+| Liquidation | `--liquidation` | Cascade risk detector |
+| Multi-TF | `--multi-tf` | 5m/1h/4h confluence |
+| Options | `--binance-options` | IV, Greeks, P/C ratio |
+| IV Surface | `--symbol` | Equity options (Polygon) |
+| Macro | `--macro` | M2/M3 growth |
 
 ## 🔑 API Keys
 
-| Provider | Zmienna | Cel |
-|----------|---------|-----|
-| Polygon.io | `POLYGON_API_KEY` | Options snapshots |
-| Finnhub | `FINNHUB_API_KEY` | Sentiment, insider |
-| FRED | `FRED_API_KEY` | US M2 |
-| Coinalyze | `COINANALYZE_API_KEY` | Historical OI |
-| GetDome | `GETDOME_API_KEY` | Polymarket |
-| Massive | `MASSIVE_API_KEY` | OHLC fallback |
-| Binance | `BINANCE_API_KEY` | Private account (optional) |
-
-## 💻 CLI
-
 ```bash
-# Pełna analiza
-signalvortex --symbol AAPL --crypto BTCUSDT --macro --output data/
-
-# Tylko opcje
-signalvortex --symbol AAPL --no-crypto --no-macro
-
-# Tylko crypto
-signalvortex --crypto BTCUSDT --no-options --no-macro
-
-# Pomoc
-signalvortex --help
+# .env
+COINALYZE_API_KEY=xxx     # For --funding
+FRED_API_KEY=xxx          # For --macro
+POLYGON_API_KEY=xxx       # For --symbol (equity options)
 ```
 
-## 🧪 Development
-
-```bash
-# Instalacja z dev dependencies
-pip install -e ".[dev]"
-
-# Linting
-ruff check signalvortex/
-
-# Type checking
-mypy signalvortex/
-
-# Testy
-pytest tests/
-```
+**Binance Futures/Options nie wymaga API key** — publiczne endpointy.
 
 ## 📄 License
 
