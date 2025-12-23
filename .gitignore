@@ -80,3 +80,8 @@ desktop.ini
 *.pickle
 *.pkl
 
+
+# SignalVortex specific
+signalvortex/env
+*.txt
+bottleneck_report_long.txt
