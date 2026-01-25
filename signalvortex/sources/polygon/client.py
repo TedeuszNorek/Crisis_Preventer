@@ -193,3 +193,52 @@ class PolygonClient(BaseClient):
             Ticker details dictionary.
         """
         return self.get(f"/v3/reference/tickers/{ticker.upper()}")
+
+    def get_aggregates(
+        self,
+        ticker: str,
+        multiplier: int,
+        timespan: str,
+        from_date: str,
+        to_date: str,
+        limit: int = 5000,
+    ) -> pd.DataFrame:
+        """Get aggregate bars (candles) for a ticker.
+
+        Args:
+            ticker: Ticker symbol (e.g., 'AAPL').
+            multiplier: Size of the timespan multiplier (e.g., 1).
+            timespan: Size of the time window (minute, hour, day, etc.).
+            from_date: Start date (YYYY-MM-DD).
+            to_date: End date (YYYY-MM-DD).
+            limit: Max results.
+
+        Returns:
+            DataFrame with timestamp, open, high, low, close, volume.
+        """
+        path = f"/v2/aggs/ticker/{ticker.upper()}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
+        params = {"limit": limit, "sort": "asc", "adjusted": "true"}
+        
+        data = self.get(path, params=params)
+        results = data.get("results", [])
+        
+        if not results:
+            return pd.DataFrame()
+            
+        df = pd.DataFrame(results)
+        # Polygon returns 't' (Unix MS), 'o', 'h', 'l', 'c', 'v', 'n' (transactions), 'vw' (weighted avg)
+        # Rename for consistency
+        cols_map = {
+            "t": "timestamp",
+            "o": "open",
+            "h": "high",
+            "l": "low",
+            "c": "close",
+            "v": "volume"
+        }
+        df.rename(columns=cols_map, inplace=True)
+        
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+            
+        return df

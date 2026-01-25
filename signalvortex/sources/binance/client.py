@@ -325,3 +325,26 @@ class BinanceFuturesClient(BaseClient):
 
         return df
 
+    def get_24hr_ticker(self) -> pd.DataFrame:
+        """Get 24hr ticker price change statistics for all symbols.
+
+        Returns:
+            DataFrame with symbol, priceChange, priceChangePercent, volume, etc.
+        """
+        try:
+            data = self.get("/fapi/v1/ticker/24hr")
+            df = pd.DataFrame(data)
+
+            if not df.empty:
+                numeric_cols = [
+                    "priceChange", "priceChangePercent", "weightedAvgPrice",
+                    "lastPrice", "lastQty", "openPrice", "highPrice", "lowPrice",
+                    "volume", "quoteVolume"
+                ]
+                for col in numeric_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+            return df
+        except Exception as e:
+            LOGGER.error(f"Failed to fetch 24hr ticker: {e}")
+            return pd.DataFrame()

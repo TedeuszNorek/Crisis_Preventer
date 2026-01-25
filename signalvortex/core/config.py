@@ -78,6 +78,14 @@ class MassiveConfig:
 
 
 @dataclass
+class AlphaVantageConfig:
+    """Alpha Vantage API configuration."""
+
+    api_key: str = field(default_factory=lambda: os.getenv("ALPHA_VANTAGE_API_KEY", ""))
+    base_url: str = "https://www.alphavantage.co/query"
+
+
+@dataclass
 class Config:
     """Unified SignalVortex configuration."""
 
@@ -89,6 +97,7 @@ class Config:
     ecb: EcbConfig = field(default_factory=EcbConfig)
     getdome: GetDomeConfig = field(default_factory=GetDomeConfig)
     massive: MassiveConfig = field(default_factory=MassiveConfig)
+    alpha_vantage: AlphaVantageConfig = field(default_factory=AlphaVantageConfig)
 
     # Output settings
     output_dir: Path = field(

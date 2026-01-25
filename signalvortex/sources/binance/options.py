@@ -186,26 +186,21 @@ class BinanceOptionsClient(BaseClient):
         # Get mark prices for all symbols
         symbols = [c.get("symbol") for c in filtered if c.get("symbol")]
 
-        # Fetch mark prices in batches
-        all_marks = []
-        for symbol in symbols[:50]:  # Limit to avoid rate limits
-            try:
-                mark_df = self.get_mark_price(symbol)
-                if not mark_df.empty:
-                    all_marks.append(mark_df.iloc[0].to_dict())
-            except Exception as e:
-                LOGGER.debug(f"Failed to get mark for {symbol}: {e}")
-
-        if not all_marks:
-            # Try bulk request
-            try:
-                mark_df = self.get_mark_price()
-                if not mark_df.empty:
-                    mark_df = mark_df[mark_df["symbol"].str.contains(underlying_base)]
-                    return mark_df
-            except Exception:
-                pass
-            return pd.DataFrame()
+        # Fetch mark prices (Bulk)
+        # We prefer the bulk endpoint to avoid N+1 queries and get the full chain
+        try:
+            mark_df = self.get_mark_price()
+            if not mark_df.empty and "symbol" in mark_df.columns:
+                 # Filter by underlying
+                 mark_df = mark_df[mark_df["symbol"].str.contains(underlying_base)]
+                 # Also filter by expiration if provided
+                 if expiration:
+                     mark_df = mark_df[mark_df["symbol"].str.contains(expiration)]
+                 return mark_df
+        except Exception as e:
+             LOGGER.error(f"Bulk mark price fetch failed: {e}")
+        
+        return pd.DataFrame()
 
         df = pd.DataFrame(all_marks)
 
