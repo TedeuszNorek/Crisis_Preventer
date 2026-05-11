@@ -65,50 +65,69 @@ def collect_monetary_aggregates(
 
 
 def compute_growth(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute month-over-month percentage change for monetary aggregates.
+    """Compute MoM and YoY percentage change for monetary aggregates.
 
     Args:
         df: DataFrame with columns: date, region, aggregate, value.
 
     Returns:
-        DataFrame with added 'pct_change' column.
+        DataFrame with added 'pct_change' (MoM) and 'yoy_change' columns.
     """
     if df.empty:
         return df
 
     df = df.copy()
     df["pct_change"] = None
+    df["yoy_change"] = None
 
-    for (region, aggregate), group in df.groupby(["region", "aggregate"]):
-        group = group.sort_values("date")
-        indices = group.index
-        values = group["value"].values
+    # Sort to ensure correct time diff
+    df.sort_values(["region", "aggregate", "date"], inplace=True)
 
-        for i in range(1, len(values)):
-            if values[i - 1] != 0:
-                pct = (values[i] - values[i - 1]) / values[i - 1]
-                df.loc[indices[i], "pct_change"] = pct
+    # Vectorized calculation per group
+    for (region, aggregate), group_idx in df.groupby(["region", "aggregate"]).groups.items():
+        # Get the group slice
+        group = df.loc[group_idx]
+        
+        # Calculate MoM (1 period) and YoY (12 periods)
+        # Assuming monthly data. If data has gaps, this matches by index position (lag),
+        # which is standard for simple series. For strict date-based, we'd need to resample.
+        mom = group["value"].pct_change(periods=1)
+        yoy = group["value"].pct_change(periods=12)
+        
+        df.loc[group_idx, "pct_change"] = mom
+        df.loc[group_idx, "yoy_change"] = yoy
 
     return df
 
 
 def get_latest_growth_rates(df: pd.DataFrame) -> dict:
-    """Get the most recent growth rate for each aggregate.
+    """Get the most recent growth rates for each aggregate.
 
     Args:
-        df: DataFrame with pct_change column.
+        df: DataFrame with pct_change and yoy_change columns.
 
     Returns:
-        Dict mapping 'region_aggregate' to latest pct_change.
+        Dict mapping keys to values:
+        - '{region}_{aggregate}_mom': latest MoM change
+        - '{region}_{aggregate}_yoy': latest YoY change
     """
     if df.empty or "pct_change" not in df.columns:
         return {}
 
     result = {}
     for (region, aggregate), group in df.groupby(["region", "aggregate"]):
-        latest = group.dropna(subset=["pct_change"]).sort_values("date").tail(1)
+        # Get latest available data point
+        latest = group.sort_values("date").tail(1)
         if not latest.empty:
-            key = f"{region}_{aggregate}"
-            result[key] = float(latest["pct_change"].iloc[0])
+            mom = latest["pct_change"].iloc[0]
+            yoy = latest["yoy_change"].iloc[0]
+            
+            base_key = f"{region}_{aggregate}"
+            
+            # Handle NaN if series is too short for YoY
+            if pd.notna(mom):
+                result[f"{base_key}_mom"] = float(mom)
+            if pd.notna(yoy):
+                result[f"{base_key}_yoy"] = float(yoy)
 
     return result

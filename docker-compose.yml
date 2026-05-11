@@ -1,0 +1,28 @@
+
+services:
+  app:
+    build: .
+    container_name: signalvortex-app
+    depends_on:
+      - db
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data # For local dev file outputs
+    command: tail -f /dev/null # Keep alive for manual exec or use cron
+    # To run a specific analysis recurrently, we'd use a different command or a scheduler service.
+
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: signalvortex-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: signalvortex
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

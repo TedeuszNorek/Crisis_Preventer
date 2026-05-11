@@ -1,0 +1,135 @@
+
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SignalContract v1",
+  "type": "object",
+  "required": [
+    "signal_id",
+    "intent",
+    "inputs",
+    "compute",
+    "rule",
+    "anti_flapping",
+    "data_quality_gate",
+    "drift_hooks",
+    "confidence",
+    "severity",
+    "evidence_pack",
+    "dedupe_key",
+    "lifecycle",
+    "actions",
+    "owner",
+    "tests"
+  ],
+  "properties": {
+    "signal_id": { "type": "string", "pattern": "^[A-Z0-9_]+$" },
+    "intent": { "type": "string" },
+    "inputs": {
+      "type": "object",
+      "required": ["source", "entity_type", "required_features"],
+      "properties": {
+        "source": { "type": "string" },
+        "entity_type": { "type": "string" },
+        "required_features": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "compute": {
+      "type": "object",
+      "properties": {
+        "aggregation": { "type": "string", "enum": ["none", "avg", "max", "min", "sum", "percentile"] },
+        "window_s": { "type": "integer" }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["feature", "operator", "base_threshold"],
+      "properties": {
+        "feature": { "type": "string" },
+        "operator": { "type": "string", "enum": [">", "<", ">=", "<=", "==", "!="] },
+        "base_threshold": { "type": "number" }
+      }
+    },
+    "anti_flapping": {
+      "type": "object",
+      "required": ["hysteresis", "for_duration_s", "cooldown_s"],
+      "properties": {
+        "hysteresis": {
+          "type": "object",
+          "required": ["enter_threshold", "exit_threshold"],
+          "properties": {
+            "enter_threshold": { "type": "number" },
+            "exit_threshold": { "type": "number" }
+          }
+        },
+        "for_duration_s": { "type": "integer", "minimum": 0 },
+        "cooldown_s": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "data_quality_gate": {
+      "type": "object",
+      "required": ["min_timeliness_s", "min_completeness", "min_consistency"],
+      "properties": {
+        "min_timeliness_s": { "type": "integer" },
+        "min_completeness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "min_consistency": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "drift_hooks": {
+      "type": "object",
+      "required": ["monitored_features", "baseline_window_d", "metrics", "action_on_drift"],
+      "properties": {
+        "monitored_features": { "type": "array", "items": { "type": "string" } },
+        "baseline_window_d": { "type": "integer" },
+        "metrics": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["KS", "PSI", "JS", "Wasserstein"] },
+          "minItems": 2
+        },
+        "action_on_drift": { "type": "string", "enum": ["log_only", "raise_confidence_threshold", "degrade_mode", "pause_signal"] }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["base_score", "factors"],
+      "properties": {
+        "base_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "factors": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "severity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "evidence_pack": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "dedupe_key": { "type": "string" },
+    "lifecycle": {
+      "type": "object",
+      "required": ["enabled", "auto_resolve_s"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "auto_resolve_s": { "type": "integer" }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "owner": { "type": "string" },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "input", "expected_outcome"],
+        "properties": {
+          "name": { "type": "string" },
+          "input": { "type": "object" },
+          "expected_outcome": { "type": "string", "enum": ["ALERT", "NO_ALERT", "DATA_ISSUE"] }
+        }
+      }
+    }
+  }
+}

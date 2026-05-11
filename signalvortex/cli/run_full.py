@@ -168,7 +168,13 @@ def run_macro_analysis(args: argparse.Namespace, config: Config, output_dir: Pat
         from signalvortex.analytics.monetary import collect_monetary_aggregates, compute_growth, get_latest_growth_rates
         df = collect_monetary_aggregates(config.fred.api_key)
         df = compute_growth(df)
-        results["macro"] = get_latest_growth_rates(df)
+        latest_rates = get_latest_growth_rates(df)
+        results["macro"] = latest_rates
+        
+        LOGGER.info("Latest Monetary Aggregate Growth:")
+        for key, value in latest_rates.items():
+            LOGGER.info(f"  {key}: {value:.2%}")
+            
         df.to_csv(output_dir / "macro_data.csv", index=False)
     except Exception as e:
         LOGGER.error(f"Macro analysis failed: {e}")
