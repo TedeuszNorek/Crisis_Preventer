@@ -4,11 +4,11 @@ echo "🚀 Rozpoczynamy publikację na GitHubie..."
 
 # 1. Zmiana nazwy starego origin i dodanie nowego
 git remote rename origin stare-repo 2>/dev/null
-git remote add origin https://github.com/TedeuszNorek/Crisis_Preventer.git 2>/dev/null || git remote set-url origin https://github.com/TedeuszNorek/Crisis_Preventer.git
+git remote add origin git@github.com:TedeuszNorek/Crisis_Preventer.git 2>/dev/null || git remote set-url origin git@github.com:TedeuszNorek/Crisis_Preventer.git
 
 # 2. Dodajemy zmiany (w tym nowe README)
 git add .
-git commit -m "feat: Crisis Preventer Quant Engine - initial commit"
+git commit -m "docs: add strategic and pitch visual assets"
 
 # 3. Próba połączenia historii, jeśli repozytorium nie było puste
 echo "⬇️ Pobieranie danych z Crisis_Preventer..."

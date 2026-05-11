@@ -25,8 +25,18 @@ By ingesting **Alternative Data (AltData)** from Copernicus Sentinel-2 satellite
 
 ## 🛰️ Strategic Satellite Dashboard
 
-![Strategic Satellite Dashboard](./sat_strategic_dashboard.png)
+![Strategic Satellite Dashboard](./assets/sat_strategic/sat_strategic_dashboard.png)
 *OrbitAlpha UI: High-resolution Sentinel-2 crop health overlays, real-time crypto arbitrage spreads, and Gamma Squeeze monitors.*
+
+<details>
+<summary>Additional SAT brief snapshots</summary>
+
+<p align="center">
+  <img src="./assets/sat_strategic/strategic_satellite_brief_v2.png" alt="Strategic Satellite Brief v2" width="48%">
+  <img src="./assets/sat_strategic/strategic_satellite_brief_rareearth.png" alt="Strategic Satellite Brief rare earth" width="48%">
+</p>
+
+</details>
 
 ---
 
