@@ -1,5 +1,5 @@
 <h1 align="center">
-  🌍 OrbitAlpha (SatVortex Quant)
+  🌍 Crisis Preventer (OrbitAlpha Quant)
 </h1>
 
 <p align="center">
@@ -15,11 +15,18 @@
 
 ## 📖 Overview
 
-**OrbitAlpha** is an institutional-grade quantitative analysis engine that bridges the physical world of agriculture and the digital world of derivatives trading. 
+**Crisis Preventer** is an institutional-grade quantitative analysis engine that bridges the physical world of agriculture and the digital world of derivatives trading. 
 
 By ingesting **Alternative Data (AltData)** from Copernicus Sentinel-2 satellites to forecast agricultural yields, the engine correlates physical supply-chain shocks with global macro-economic indicators. Simultaneously, it runs a high-performance asynchronous arbitrage engine, calculating **Gamma Squeeze risk** and **Delta Hedging sensitivities** across prediction markets (Polymarket) and traditional crypto derivatives (Deribit/Binance).
 
 > **Note:** This is a stripped-down "Open Core" version. Proprietary alpha-generating strategies, proprietary execution modules, and live API keys have been removed.
+
+---
+
+## 🛰️ Strategic Satellite Dashboard
+
+![Strategic Satellite Dashboard](./sat_strategic_dashboard.png)
+*OrbitAlpha UI: High-resolution Sentinel-2 crop health overlays, real-time crypto arbitrage spreads, and Gamma Squeeze monitors.*
 
 ---
 
@@ -66,17 +73,8 @@ graph TD
     AR --> DB
     YF --> DB
     
-    DB --> UI[OrbitAlpha Unified Dashboard]
+    DB --> UI[Crisis Preventer Unified Dashboard]
 ```
-
----
-
-## 🛠️ Technology Stack
-
-*   **Core:** Python 3.11+, `asyncio`, `websockets`
-*   **Data Science & Satellite:** `GeoPandas`, `Rasterio`, `LightGBM`, `Prophet`, `sentinelhub-py`
-*   **Data Processing:** `pandas`, `numpy`, `scipy`
-*   **Architecture Pattern:** Event-driven, Pipeline, strict JSON Schemas.
 
 ---
 
@@ -84,8 +82,8 @@ graph TD
 
 ```bash
 # Clone the repository
-git clone https://github.com/TedeuszNorek/OrbitAlpha.git
-cd OrbitAlpha
+git clone https://github.com/TedeuszNorek/Crisis_Preventer.git
+cd Crisis_Preventer
 
 # Set up virtual environment
 python -m venv venv
@@ -98,7 +96,6 @@ pip install -r requirements.txt
 # Note: Do not commit your .env file
 echo "SENTINEL_HUB_CLIENT_ID=your_id" >> .env
 echo "SENTINEL_HUB_CLIENT_SECRET=your_secret" >> .env
-echo "BINANCE_API_SECRET=your_secret" >> .env
 
 # Run the core engine (Mock mode)
 python -m signalvortex.cli.run_full --mock-feeds
@@ -106,10 +103,3 @@ python -m signalvortex.cli.run_full --mock-feeds
 # Run the UI Dashboard
 streamlit run app.py
 ```
-
----
-
-## 📜 Disclaimer
-
-**For Educational and Research Purposes Only.** 
-The code in this repository does not constitute financial advice, investment advice, or trading advice. Trading cryptocurrencies, commodities, and options involves substantial risk of loss. The authors are not responsible for any financial losses incurred from the use of this software.
