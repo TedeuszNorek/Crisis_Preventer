@@ -12,12 +12,14 @@ import feedparser
 
 from src.core.event_bus import bus
 from src.core.models import Domain, RawEvent, Signal, Severity
-from .feeds import FEEDS, KEYWORD_INSTRUMENT_MAP
+from .feeds import FEEDS, KEYWORD_RULES, KeywordRule
 
 logger = logging.getLogger(__name__)
 
 _SEEN: Set[str] = set()          # deduplicate by article hash
 _SEEN_MAX = 10_000
+
+_SEVERITY_ORDER = [Severity.LOW, Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL]
 
 
 def _article_hash(entry: dict) -> str:
@@ -25,19 +27,31 @@ def _article_hash(entry: dict) -> str:
     return hashlib.md5(key.encode()).hexdigest()
 
 
-def _keywords_in_text(text: str) -> List[str]:
+def _match_rules(text: str) -> List[KeywordRule]:
+    """Return all KeywordRules whose keywords appear in text (one per category max)."""
     text_lower = text.lower()
-    return [kw for kw in KEYWORD_INSTRUMENT_MAP if kw in text_lower]
+    seen_categories: set = set()
+    matched = []
+    for rule in KEYWORD_RULES:
+        if rule.category in seen_categories:
+            continue
+        if any(kw in text_lower for kw in rule.keywords):
+            matched.append(rule)
+            seen_categories.add(rule.category)
+    return matched
 
 
-def _severity_from_keywords(keywords: List[str]) -> Severity:
-    high_risk = {"war", "blockade", "sanctions", "conflict", "hack", "liquidation"}
-    medium_risk = {"strait", "port", "rate hike", "rate cut", "election", "drought"}
-    if any(k in high_risk for k in keywords):
-        return Severity.HIGH
-    if any(k in medium_risk for k in keywords):
-        return Severity.MEDIUM
-    return Severity.LOW
+def _severity_from_rules(rules: List[KeywordRule]) -> Severity:
+    if not rules:
+        return Severity.LOW
+    return max((r.min_severity for r in rules), key=lambda s: _SEVERITY_ORDER.index(s))
+
+
+def _instruments_from_rules(rules: List[KeywordRule]) -> List[str]:
+    instruments: set = set()
+    for rule in rules:
+        instruments.update(rule.instruments)
+    return sorted(instruments)
 
 
 async def _fetch_feed(session: aiohttp.ClientSession, feed_cfg: Dict) -> List[Dict]:
@@ -77,13 +91,11 @@ async def run_rss_harvester() -> None:
                     title = entry.get("title", "")
                     summary = entry.get("summary", "")
                     full_text = f"{title} {summary}"
-                    keywords = _keywords_in_text(full_text)
-                    severity = _severity_from_keywords(keywords)
 
-                    instruments = []
-                    for kw in keywords:
-                        instruments.extend(KEYWORD_INSTRUMENT_MAP.get(kw, []))
-                    instruments = list(set(instruments))
+                    matched_rules = _match_rules(full_text)
+                    severity = _severity_from_rules(matched_rules)
+                    instruments = _instruments_from_rules(matched_rules)
+                    categories = [r.category for r in matched_rules]
 
                     raw = RawEvent(
                         source="rss",
@@ -95,14 +107,14 @@ async def run_rss_harvester() -> None:
                             "link": entry.get("link", ""),
                             "published": entry.get("published", ""),
                             "feed_tags": feed_cfg["tags"],
-                            "keywords": keywords,
+                            "categories": categories,
                             "instruments": instruments,
                         },
-                        tags=feed_cfg["tags"] + keywords,
+                        tags=feed_cfg["tags"] + categories,
                     )
                     await bus.publish_raw(raw)
 
-                    if severity in (Severity.HIGH, Severity.CRITICAL) or keywords:
+                    if matched_rules:
                         signal = Signal(
                             signal_id=f"rss_{art_hash}",
                             source="rss",
@@ -111,7 +123,7 @@ async def run_rss_harvester() -> None:
                             severity=severity,
                             value=1.0,
                             context={
-                                "keywords": keywords,
+                                "categories": categories,
                                 "instruments": instruments,
                                 "feed_tags": feed_cfg["tags"],
                                 "link": entry.get("link", ""),
