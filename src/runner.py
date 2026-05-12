@@ -30,12 +30,22 @@ async def _run_all(modules: set[str], mock: bool) -> None:
     tasks = []
 
     # ── Agent orchestrator ────────────────────────────────────────────────
-    if os.getenv("ANTHROPIC_API_KEY"):
-        from src.agent.orchestrator import orchestrator
-        tasks.append(asyncio.create_task(orchestrator.run(), name="agent"))
-        logger.info("[Runner] Agent orchestrator: ON")
+    provider = os.getenv("LLM_PROVIDER", "claude")
+    key_map = {
+        "claude": "ANTHROPIC_API_KEY", "deepseek": "DEEPSEEK_API_KEY",
+        "openai": "OPENAI_API_KEY", "openrouter": "OPENROUTER_API_KEY",
+        "local": None,
+    }
+    required_key = key_map.get(provider)
+    if required_key is None or os.getenv(required_key):
+        try:
+            from src.agent.orchestrator import orchestrator
+            tasks.append(asyncio.create_task(orchestrator.run(), name="agent"))
+            logger.info(f"[Runner] Agent orchestrator: ON ({provider})")
+        except Exception as exc:
+            logger.warning(f"[Runner] Agent failed to init: {exc}")
     else:
-        logger.warning("[Runner] ANTHROPIC_API_KEY not set — agent disabled")
+        logger.warning(f"[Runner] {required_key} not set — agent disabled")
 
     # ── RSS ───────────────────────────────────────────────────────────────
     if "rss" in modules:

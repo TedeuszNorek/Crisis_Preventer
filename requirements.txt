@@ -14,8 +14,9 @@ websockets>=12.0
 # RSS parsing
 feedparser>=6.0.11
 
-# LLM agent
-anthropic>=0.28.0
+# LLM agent — install for your chosen LLM_PROVIDER
+anthropic>=0.28.0   # LLM_PROVIDER=claude
+openai>=1.30.0      # LLM_PROVIDER=deepseek | openai | openrouter | local
 
 # Data / analytics
 pandas>=2.0.0

@@ -1,33 +1,33 @@
 """LLM Orchestrator — the brain of Vortex Analytica.
 
-Watches the event bus, applies correlation rules, and uses Claude
+Watches the event bus, applies correlation rules, and uses an LLM
 to decide when to escalate, which modules to activate, and what to
-write in the live feed ("bieżaczka").
+write in the live feed.
 
-Claude tool use schema:
+Supports: Claude, DeepSeek, OpenAI, OpenRouter, local (Ollama/vLLM).
+Set LLM_PROVIDER and LLM_MODEL in .env to switch.
+
+Tool use schema:
   - activate_module(name, reason, poll_seconds)
-  - set_polling_rate(source, seconds)
-  - scan_satellite(zone, reason)
-  - write_feed_entry(severity, text_pl)
+  - scan_satellite(zone, reason, date_from, date_to)
+  - write_feed_entry(severity, text, instruments)
   - no_action(reason)
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import time
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, List, Optional
-
-import anthropic
+from typing import Any, Dict, List, Optional
 
 from src.core.event_bus import bus
 from src.core.models import EscalationDecision, Signal, Severity
 from src.sources.copernicus.client import satellite
 from .context import build_context, context_to_prompt
 from .correlations import matching_rules
+from .llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -120,20 +120,20 @@ TOOLS = [
     },
 ]
 
-SYSTEM_PROMPT = """Jesteś Vortex Analytica — autonomicznym systemem analizy sygnałów w czasie rzeczywistym.
+SYSTEM_PROMPT = """You are Vortex Analytica — an autonomous real-time signal analysis system.
 
-Twoim zadaniem jest:
-1. Ocenić napływające sygnały z wielu źródeł (krypto, statki AIS, wiadomości RSS, satelity, rynki predykcji).
-2. Zdecydować, które moduły warto aktywować lub wzmocnić (cross-domain correlation).
-3. Napisać wpis do live feed analityka TYLKO gdy coś jest istotne.
-4. Uruchomić scan satelitarny TYLKO gdy jest konkretny powód geograficzny.
+Your job:
+1. Evaluate incoming signals from multiple sources (crypto, AIS ships, RSS news, satellite, prediction markets).
+2. Decide which modules to activate or boost (cross-domain correlation).
+3. Write a live feed entry ONLY when something is genuinely significant.
+4. Trigger a satellite scan ONLY when there is a concrete geographic reason.
 
-Zasady:
-- Nie pisz do feed przy każdym sygnale — filtruj szum. Próg: MEDIUM+ i konkretna implikacja rynkowa/geopolityczna.
-- Łącz sygnały z różnych domen (np. AIS anomalia w Hormuz + wzrost IV na Deribit = ropny crunch).
-- Myśl jak senior analityk, nie jak agregator alertów.
-- Odpowiedz po polsku w write_feed_entry, ale nazwy instrumentów/stref po angielsku.
-- Przy CRITICAL zawsze write_feed_entry + minimum jeden activate_module."""
+Rules:
+- Do NOT write a feed entry for every signal — filter the noise. Threshold: MEDIUM+ severity with a clear market or geopolitical implication.
+- Connect signals across domains (e.g. AIS anomaly in Hormuz + Deribit IV spike = oil supply crunch).
+- Think like a senior analyst, not an alert aggregator.
+- write_feed_entry text should be concise (1-3 sentences), in English.
+- For CRITICAL signals: always write_feed_entry AND at least one activate_module."""
 
 
 class FeedEntry:
@@ -155,10 +155,7 @@ class FeedEntry:
 
 class VortexOrchestrator:
     def __init__(self) -> None:
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY not set")
-        self._client = anthropic.Anthropic(api_key=api_key)
+        self._llm = LLMClient()
         self._feed: List[FeedEntry] = []
         self._last_agent_run: float = 0.0
         self._agent_cooldown = 45  # seconds between full LLM calls (cost control)
@@ -228,23 +225,20 @@ class VortexOrchestrator:
         )
 
         try:
-            response = self._client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=1024,
+            response = await self._llm.call(
                 system=SYSTEM_PROMPT,
+                user=user_msg,
                 tools=TOOLS,
-                messages=[{"role": "user", "content": user_msg}],
+                max_tokens=1024,
             )
             await self._handle_tool_calls(response)
         except Exception as exc:
             logger.error(f"[Agent/LLM] Error: {exc}")
 
     async def _handle_tool_calls(self, response: Any) -> None:
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            name = block.name
-            inp = block.input
+        for block in response.tool_calls:
+            name = block["name"]
+            inp = block["input"]
 
             if name == "write_feed_entry":
                 entry = FeedEntry(

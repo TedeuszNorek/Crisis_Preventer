@@ -105,21 +105,29 @@ Dashboard available at **http://localhost:8000**
 ## Environment — `.env`
 
 ```env
-# LLM Agent (required for orchestration)
-ANTHROPIC_API_KEY=sk-ant-...
+# Pick your LLM provider — only ONE key is required
+LLM_PROVIDER=deepseek          # claude | deepseek | openai | openrouter | local
+# LLM_MODEL=deepseek-reasoner  # optional model override
 
-# AIS maritime stream — https://aisstream.io
+ANTHROPIC_API_KEY=             # https://console.anthropic.com
+DEEPSEEK_API_KEY=              # https://platform.deepseek.com  ← cheapest
+OPENAI_API_KEY=                # https://platform.openai.com
+OPENROUTER_API_KEY=            # https://openrouter.ai
+
+# Local / offline (Ollama, LM Studio, vLLM) — no key needed
+# LLM_PROVIDER=local
+# LOCAL_LLM_URL=http://localhost:11434/v1
+# LLM_MODEL=llama3
+
+# AIS maritime — https://aisstream.io (free tier available)
 AISSTREAM_API_KEY=
 
-# ESA Copernicus Sentinel-2 — https://dataspace.copernicus.eu
+# ESA Copernicus Sentinel-2 — https://dataspace.copernicus.eu (free)
 SENTINEL_HUB_CLIENT_ID=
 SENTINEL_HUB_CLIENT_SECRET=
-
-# Polymarket extended data — https://domeapi.io
-DOME_API_KEY=
 ```
 
-The system runs without `AISSTREAM_API_KEY` (AIS module skipped) and without Copernicus credentials (agent notes it wanted to scan but has no access). Only `ANTHROPIC_API_KEY` is required for the agent; without it, signals are collected and displayed but LLM orchestration is disabled.
+DeepSeek is the default recommendation — significantly cheaper than Claude/OpenAI and handles tool use well. Local mode (Ollama) works for air-gapped deployments. Without any LLM key, the system still collects and displays signals — orchestration is just disabled.
 
 ---
 
