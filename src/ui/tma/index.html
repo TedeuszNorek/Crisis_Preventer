@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Crypto Intelligence Terminal</title>
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- React & ReactDOM (UMD versions) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel standalone for JSX in-browser compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS for rapid utility styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/styles.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        tg_bg: 'var(--tg-theme-bg-color, #1a1b1e)',
+                        tg_text: 'var(--tg-theme-text-color, #ffffff)',
+                        tg_button: 'var(--tg-theme-button-color, #00ff88)',
+                        tg_hint: 'var(--tg-theme-hint-color, #a8a8a8)',
+                        neon_green: '#00ff88',
+                        neon_purple: '#b721ff',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-900 text-white antialiased overflow-x-hidden min-h-screen">
+    <div id="root"></div>
+    <script type="text/babel" src="app.jsx?v=18"></script>
+</body>
+</html>

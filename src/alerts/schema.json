@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SignalContract",
+  "type": "object",
+  "required": [
+    "signal_id", "intent", "inputs", "compute", "rule", "anti_flapping",
+    "data_quality_gate", "drift_hooks", "confidence", "severity",
+    "evidence_pack", "dedupe_key", "lifecycle", "actions", "owner", "tests"
+  ],
+  "properties": {
+    "signal_id": { "type": "string" },
+    "intent": { "type": "string" },
+    "inputs": { "type": "array", "items": { "type": "string" } },
+    "compute": { "type": "string" },
+    "rule": {
+      "type": "object",
+      "required": ["operator", "enter_threshold", "exit_threshold"],
+      "properties": {
+        "operator": { "type": "string", "enum": [">", "<", ">=", "<=", "=="] },
+        "enter_threshold": { "type": "number" },
+        "exit_threshold": { "type": "number" }
+      }
+    },
+    "anti_flapping": {
+      "type": "object",
+      "required": ["for_duration", "cooldown"],
+      "properties": {
+        "for_duration": { "type": "integer" },
+        "cooldown": { "type": "integer" }
+      }
+    },
+    "data_quality_gate": {
+      "type": "object",
+      "required": ["timeliness", "completeness", "consistency"],
+      "properties": {
+        "timeliness": { "type": "integer" },
+        "completeness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "consistency": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "drift_hooks": {
+      "type": "object",
+      "required": ["monitored_features", "baseline_window", "metrics", "action_on_drift"],
+      "properties": {
+        "monitored_features": { "type": "array", "items": { "type": "string" } },
+        "baseline_window": { "type": "integer" },
+        "metrics": { "type": "array", "items": { "type": "string", "enum": ["KS", "PSI", "JS", "Wasserstein"] } },
+        "action_on_drift": { "type": "string", "enum": ["raise_threshold", "degrade_mode", "pause"] }
+      }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "severity": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+    "evidence_pack": { "type": "array", "items": { "type": "string" } },
+    "dedupe_key": { "type": "string" },
+    "lifecycle": { "type": "array", "items": { "type": "string", "enum": ["open", "update", "resolve"] } },
+    "actions": { "type": "array", "items": { "type": "string" } },
+    "owner": { "type": "string" },
+    "tests": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -1,0 +1,218 @@
+[
+    {
+        "signal_id": "macro_geopol_energy_shock_v1",
+        "intent": "Detect geopolitical escalation strongly impacting energy supply chains",
+        "inputs": [
+            "nlp_geopol_escalation_score",
+            "wti_crude_price_change_15m"
+        ],
+        "compute": "nlp_geopol_escalation_score",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.85,
+            "exit_threshold": 0.50
+        },
+        "anti_flapping": {
+            "for_duration": 60,
+            "cooldown": 14400
+        },
+        "data_quality_gate": {
+            "timeliness": 30,
+            "completeness": 0.95,
+            "consistency": 0.90
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "nlp_geopol_escalation_score"
+            ],
+            "baseline_window": 604800,
+            "metrics": [
+                "PSI"
+            ],
+            "action_on_drift": "raise_threshold"
+        },
+        "confidence": 0.90,
+        "severity": "CRITICAL",
+        "evidence_pack": [
+            "nlp_geopol_escalation_score",
+            "wti_crude_price_change_15m"
+        ],
+        "dedupe_key": "{entity_id}_macro_geopol",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_macro_alert"
+        ],
+        "owner": "macro_desk",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "macro_cpi_inflation_shock_v1",
+        "intent": "Detect acute CPI prints beating consensus, causing equity selloff and USD rally",
+        "inputs": [
+            "cpi_surprise_bps",
+            "us10y_yield_change_5m",
+            "dxy_change_5m"
+        ],
+        "compute": "cpi_surprise_bps",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.20,
+            "exit_threshold": 0.05
+        },
+        "anti_flapping": {
+            "for_duration": 0,
+            "cooldown": 86400
+        },
+        "data_quality_gate": {
+            "timeliness": 5,
+            "completeness": 1.0,
+            "consistency": 1.0
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "cpi_surprise_bps"
+            ],
+            "baseline_window": 31536000,
+            "metrics": [
+                "KS"
+            ],
+            "action_on_drift": "degrade_mode"
+        },
+        "confidence": 0.85,
+        "severity": "HIGH",
+        "evidence_pack": [
+            "cpi_surprise_bps",
+            "us10y_yield_change_5m",
+            "dxy_change_5m"
+        ],
+        "dedupe_key": "{entity_id}_cpi_shock",
+        "lifecycle": [
+            "open",
+            "resolve"
+        ],
+        "actions": [
+            "emit_macro_alert"
+        ],
+        "owner": "macro_desk",
+        "tests": [
+            "normal",
+            "near_threshold"
+        ]
+    },
+    {
+        "signal_id": "macro_systemic_contagion_v1",
+        "intent": "Detect flight-to-liquidity / contagion by monitoring bank index drops against VIX and Treasury spikes",
+        "inputs": [
+            "xlf_price_drop_1h",
+            "us03m_yield_change"
+        ],
+        "compute": "xlf_price_drop_1h",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.05,
+            "exit_threshold": 0.02
+        },
+        "anti_flapping": {
+            "for_duration": 300,
+            "cooldown": 28800
+        },
+        "data_quality_gate": {
+            "timeliness": 60,
+            "completeness": 0.99,
+            "consistency": 0.99
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "xlf_price_drop_1h"
+            ],
+            "baseline_window": 2592000,
+            "metrics": [
+                "Wasserstein"
+            ],
+            "action_on_drift": "pause"
+        },
+        "confidence": 0.95,
+        "severity": "CRITICAL",
+        "evidence_pack": [
+            "xlf_price_drop_1h",
+            "us03m_yield_change",
+            "vix_level"
+        ],
+        "dedupe_key": "{entity_id}_systemic_panic",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_market_alert",
+            "halt_trading_logic"
+        ],
+        "owner": "risk_committee",
+        "tests": [
+            "normal",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "macro_cb_hawkish_surprise_v1",
+        "intent": "Detect hawkish surprise during Central Bank rate decision or unscheduled meeting",
+        "inputs": [
+            "nlp_hawkish_score",
+            "us02y_yield_change_15m"
+        ],
+        "compute": "nlp_hawkish_score",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.80,
+            "exit_threshold": 0.40
+        },
+        "anti_flapping": {
+            "for_duration": 120,
+            "cooldown": 14400
+        },
+        "data_quality_gate": {
+            "timeliness": 10,
+            "completeness": 0.95,
+            "consistency": 0.95
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "nlp_hawkish_score"
+            ],
+            "baseline_window": 604800,
+            "metrics": [
+                "PSI"
+            ],
+            "action_on_drift": "raise_threshold"
+        },
+        "confidence": 0.85,
+        "severity": "HIGH",
+        "evidence_pack": [
+            "nlp_hawkish_score",
+            "us02y_yield_change_15m"
+        ],
+        "dedupe_key": "{entity_id}_cb_hawkish",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_macro_alert"
+        ],
+        "owner": "macro_desk",
+        "tests": [
+            "normal",
+            "near_threshold"
+        ]
+    }
+]

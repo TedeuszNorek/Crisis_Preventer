@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  signal-engine:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - signal_data:/app/data
+      # Mount src to allow hot-reloading if we use --reload
+      - ./src:/app/src
+    environment:
+      - DB_PATH=/app/data/alerts.db
+
+volumes:
+  signal_data:

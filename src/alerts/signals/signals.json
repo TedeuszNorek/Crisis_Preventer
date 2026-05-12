@@ -1,0 +1,484 @@
+[
+    {
+        "signal_id": "market_funding_spike_v1",
+        "intent": "Detect extreme positive funding rates",
+        "inputs": [
+            "funding_rate",
+            "price"
+        ],
+        "compute": "funding_rate",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.002,
+            "exit_threshold": 0.0005
+        },
+        "anti_flapping": {
+            "for_duration": 300,
+            "cooldown": 3600
+        },
+        "data_quality_gate": {
+            "timeliness": 10,
+            "completeness": 0.95,
+            "consistency": 0.99
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "funding_rate"
+            ],
+            "baseline_window": 86400,
+            "metrics": [
+                "KS",
+                "PSI"
+            ],
+            "action_on_drift": "degrade_mode"
+        },
+        "confidence": 0.90,
+        "severity": "HIGH",
+        "evidence_pack": [
+            "funding_rate",
+            "price"
+        ],
+        "dedupe_key": "{entity_id}_funding_spike",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_market_alert"
+        ],
+        "owner": "quant_risk",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "oi_shock_v1",
+        "intent": "Detect massive buildup of open interest",
+        "inputs": [
+            "oi_change_1h"
+        ],
+        "compute": "oi_change_1h",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.15,
+            "exit_threshold": 0.05
+        },
+        "anti_flapping": {
+            "for_duration": 600,
+            "cooldown": 7200
+        },
+        "data_quality_gate": {
+            "timeliness": 15,
+            "completeness": 0.95,
+            "consistency": 0.95
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "oi_change_1h"
+            ],
+            "baseline_window": 604800,
+            "metrics": [
+                "KS",
+                "Wasserstein"
+            ],
+            "action_on_drift": "raise_threshold"
+        },
+        "confidence": 0.85,
+        "severity": "CRITICAL",
+        "evidence_pack": [
+            "oi_change_1h"
+        ],
+        "dedupe_key": "{entity_id}_oi_shock",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_market_alert"
+        ],
+        "owner": "quant_risk",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "polymarket_geopol_spike_v1",
+        "intent": "Detect rapid increase in probability of geopolitical event closing Yes on prediction markets",
+        "inputs": [
+            "yes_prob"
+        ],
+        "compute": "yes_prob",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.60,
+            "exit_threshold": 0.40
+        },
+        "anti_flapping": {
+            "for_duration": 300,
+            "cooldown": 21600
+        },
+        "data_quality_gate": {
+            "timeliness": 60,
+            "completeness": 0.95,
+            "consistency": 0.95
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "yes_prob"
+            ],
+            "baseline_window": 86400,
+            "metrics": [
+                "PSI"
+            ],
+            "action_on_drift": "raise_threshold"
+        },
+        "confidence": 0.95,
+        "severity": "CRITICAL",
+        "evidence_pack": [
+            "yes_prob"
+        ],
+        "dedupe_key": "{entity_id}_polymarket_spike",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_geopol_alert"
+        ],
+        "owner": "geopol_intel",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "news_sentiment_crash_v1",
+        "intent": "Detect rapid negative sentiment drop from NLP",
+        "inputs": [
+            "sentiment_score"
+        ],
+        "compute": "sentiment_score",
+        "rule": {
+            "operator": "<",
+            "enter_threshold": -0.80,
+            "exit_threshold": -0.40
+        },
+        "anti_flapping": {
+            "for_duration": 120,
+            "cooldown": 1800
+        },
+        "data_quality_gate": {
+            "timeliness": 30,
+            "completeness": 0.90,
+            "consistency": 0.90
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "sentiment_score"
+            ],
+            "baseline_window": 86400,
+            "metrics": [
+                "KS",
+                "PSI"
+            ],
+            "action_on_drift": "pause"
+        },
+        "confidence": 0.80,
+        "severity": "HIGH",
+        "evidence_pack": [
+            "sentiment_score"
+        ],
+        "dedupe_key": "{entity_id}_sentiment_crash",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_news_alert"
+        ],
+        "owner": "nlp_team",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "ais_dark_vessel_v1",
+        "intent": "Detect vessels turning off AIS near conflict zones",
+        "inputs": [
+            "time_since_ping",
+            "dist_to_zone"
+        ],
+        "compute": "time_since_ping",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 14400,
+            "exit_threshold": 3600
+        },
+        "anti_flapping": {
+            "for_duration": 0,
+            "cooldown": 86400
+        },
+        "data_quality_gate": {
+            "timeliness": 3600,
+            "completeness": 0.85,
+            "consistency": 0.99
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "time_since_ping"
+            ],
+            "baseline_window": 2592000,
+            "metrics": [
+                "PSI",
+                "JS"
+            ],
+            "action_on_drift": "degrade_mode"
+        },
+        "confidence": 0.95,
+        "severity": "CRITICAL",
+        "evidence_pack": [
+            "time_since_ping",
+            "dist_to_zone"
+        ],
+        "dedupe_key": "{entity_id}_dark_vessel",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_geopol_alert"
+        ],
+        "owner": "geopol_intel",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "satellite_buildup_v1",
+        "intent": "Detect military buildup via sat imagery",
+        "inputs": [
+            "pixel_delta"
+        ],
+        "compute": "pixel_delta",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.25,
+            "exit_threshold": 0.10
+        },
+        "anti_flapping": {
+            "for_duration": 86400,
+            "cooldown": 604800
+        },
+        "data_quality_gate": {
+            "timeliness": 172800,
+            "completeness": 0.80,
+            "consistency": 0.80
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "pixel_delta"
+            ],
+            "baseline_window": 31536000,
+            "metrics": [
+                "KS",
+                "Wasserstein"
+            ],
+            "action_on_drift": "degrade_mode"
+        },
+        "confidence": 0.75,
+        "severity": "MEDIUM",
+        "evidence_pack": [
+            "pixel_delta"
+        ],
+        "dedupe_key": "{entity_id}_sat_buildup",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_geopol_alert"
+        ],
+        "owner": "geopol_intel",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "macro_m2_contraction_v1",
+        "intent": "Detect severe macroeconomic liquidity drain (M2 YoY contraction)",
+        "inputs": [
+            "m2_yoy_growth"
+        ],
+        "compute": "m2_yoy_growth",
+        "rule": {
+            "operator": "<",
+            "enter_threshold": 0.0,
+            "exit_threshold": 0.01
+        },
+        "anti_flapping": {
+            "for_duration": 86400,
+            "cooldown": 2592000
+        },
+        "data_quality_gate": {
+            "timeliness": 86400,
+            "completeness": 0.95,
+            "consistency": 1.0
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "m2_yoy_growth"
+            ],
+            "baseline_window": 31536000,
+            "metrics": [
+                "KS",
+                "PSI"
+            ],
+            "action_on_drift": "raise_threshold"
+        },
+        "confidence": 0.95,
+        "severity": "CRITICAL",
+        "evidence_pack": [
+            "m2_yoy_growth"
+        ],
+        "dedupe_key": "{entity_id}_macro_contraction",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_market_alert"
+        ],
+        "owner": "macro_desk",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "equity_options_iv_spike_v1",
+        "intent": "Detect panic pricing in equity options (SPY Implied Volatility Spike)",
+        "inputs": [
+            "implied_volatility_avg",
+            "chain_volume"
+        ],
+        "compute": "implied_volatility_avg",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.40,
+            "exit_threshold": 0.25
+        },
+        "anti_flapping": {
+            "for_duration": 900,
+            "cooldown": 21600
+        },
+        "data_quality_gate": {
+            "timeliness": 300,
+            "completeness": 0.90,
+            "consistency": 1.0
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "implied_volatility_avg"
+            ],
+            "baseline_window": 604800,
+            "metrics": [
+                "KS"
+            ],
+            "action_on_drift": "degrade_mode"
+        },
+        "confidence": 0.85,
+        "severity": "HIGH",
+        "evidence_pack": [
+            "implied_volatility_avg",
+            "chain_volume"
+        ],
+        "dedupe_key": "{entity_id}_iv_spike",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_market_alert"
+        ],
+        "owner": "options_desk",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    },
+    {
+        "signal_id": "crypto_options_iv_spike_v1",
+        "intent": "Detect panic pricing in crypto options (BTC Implied Volatility Spike)",
+        "inputs": [
+            "implied_volatility_avg",
+            "chain_volume"
+        ],
+        "compute": "implied_volatility_avg",
+        "rule": {
+            "operator": ">",
+            "enter_threshold": 0.70,
+            "exit_threshold": 0.50
+        },
+        "anti_flapping": {
+            "for_duration": 600,
+            "cooldown": 21600
+        },
+        "data_quality_gate": {
+            "timeliness": 60,
+            "completeness": 0.90,
+            "consistency": 1.0
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "implied_volatility_avg"
+            ],
+            "baseline_window": 604800,
+            "metrics": [
+                "KS"
+            ],
+            "action_on_drift": "degrade_mode"
+        },
+        "confidence": 0.90,
+        "severity": "HIGH",
+        "evidence_pack": [
+            "implied_volatility_avg",
+            "chain_volume"
+        ],
+        "dedupe_key": "{entity_id}_crypto_iv_spike",
+        "lifecycle": [
+            "open",
+            "update",
+            "resolve"
+        ],
+        "actions": [
+            "emit_market_alert"
+        ],
+        "owner": "crypto_options_desk",
+        "tests": [
+            "normal",
+            "near_threshold",
+            "dq_failure"
+        ]
+    }
+]

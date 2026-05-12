@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignalVortex | Anomaly Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #151a28;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent-poly: #3b82f6;
+            --accent-poly-glow: rgba(59, 130, 246, 0.4);
+            --accent-binance: #eab308;
+            --accent-binance-glow: rgba(234, 179, 8, 0.4);
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin: 0;
+            background: linear-gradient(135deg, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .controls {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 50px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* BIG BUTTONS */
+        .btn {
+            background: var(--card-bg);
+            border: 2px solid transparent;
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            padding: 24px 48px;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            min-width: 280px;
+        }
+
+        .btn-poly {
+            border-color: rgba(59, 130, 246, 0.3);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.1);
+        }
+        
+        .btn-poly.active {
+            border-color: var(--accent-poly);
+            box-shadow: 0 0 40px var(--accent-poly-glow);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .btn-binance {
+            border-color: rgba(234, 179, 8, 0.3);
+            box-shadow: 0 0 20px rgba(234, 179, 8, 0.1);
+        }
+
+        .btn-binance.active {
+            border-color: var(--accent-binance);
+            box-shadow: 0 0 40px var(--accent-binance-glow);
+            background: rgba(234, 179, 8, 0.1);
+        }
+
+        .btn:hover {
+            transform: translateY(-4px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: var(--danger);
+            transition: background-color 0.3s ease;
+            box-shadow: 0 0 10px var(--danger);
+        }
+
+        .btn.active .status-dot {
+            background-color: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .alerts-container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .alert-item {
+            padding: 20px;
+            border-radius: 12px;
+            background: rgba(0,0,0,0.2);
+            margin-bottom: 15px;
+            border-left: 4px solid var(--text-muted);
+            animation: slideIn 0.4s ease-out;
+            transition: transform 0.2s ease;
+        }
+
+        .alert-item:hover {
+            transform: translateX(5px);
+            background: rgba(255,255,255,0.03);
+        }
+
+        .source-poly { border-color: var(--accent-poly); }
+        .source-binance { border-color: var(--accent-binance); }
+
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .alert-title {
+            font-weight: 800;
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+        }
+
+        .alert-msg {
+            font-size: 1rem;
+            line-height: 1.5;
+            color: #cbd5e1;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px;
+            font-style: italic;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>SignalVortex Dashboard</h1>
+        <p style="color: var(--text-muted); margin-top: 10px;">Monitor Asymetrii Rynkowych i Dumb Money</p>
+    </div>
+
+    <div class="controls">
+        <button id="btn-polymarket" class="btn btn-poly" onclick="toggleDaemon('polymarket')">
+            <div class="status-dot" id="dot-polymarket"></div>
+            <span>Polymarket Scanner</span>
+            <small style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400;">Geopolityka & Makro</small>
+        </button>
+
+        <button id="btn-binance" class="btn btn-binance" onclick="toggleDaemon('binance')">
+            <div class="status-dot" id="dot-binance"></div>
+            <span>Binance OI / Funding</span>
+            <small style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400;">Long Squeeze & Dźwignia</small>
+        </button>
+    </div>
+
+    <div class="alerts-container">
+        <h2>Live Anomalies Feed</h2>
+        <div id="alerts-list">
+            <div class="empty-state">Oczekiwanie na alerty... Podłącz Radary.</div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const status = await res.json();
+                
+                const polyBtn = document.getElementById('btn-polymarket');
+                if(status.polymarket) polyBtn.classList.add('active');
+                else polyBtn.classList.remove('active');
+
+                const binanceBtn = document.getElementById('btn-binance');
+                if(status.binance) binanceBtn.classList.add('active');
+                else binanceBtn.classList.remove('active');
+
+            } catch(e) { console.error("Error fetching status", e); }
+        }
+
+        async function toggleDaemon(daemon) {
+            const btn = document.getElementById(`btn-${daemon}`);
+            const isActive = btn.classList.contains('active');
+            const action = isActive ? 'stop' : 'start';
+
+            // Optimistic UI update
+            btn.classList.toggle('active');
+
+            try {
+                await fetch('/api/toggle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({daemon: daemon, action: action})
+                });
+                fetchStatus();
+            } catch(e) {
+                console.error(e);
+                // revert on fail
+                btn.classList.toggle('active');
+            }
+        }
+
+        let lastAlerts = '';
+
+        async function fetchAlerts() {
+            try {
+                const res = await fetch('/api/alerts');
+                const alerts = await res.json();
+                
+                if(alerts.length === 0) return;
+
+                const stringified = JSON.stringify(alerts);
+                if(stringified === lastAlerts) return; // no changes
+                lastAlerts = stringified;
+
+                const list = document.getElementById('alerts-list');
+                list.innerHTML = ''; // clear
+
+                alerts.forEach(a => {
+                    const sourceClass = a.source.toLowerCase().includes('poly') ? 'source-poly' : 
+                                       (a.source.toLowerCase().includes('binance') ? 'source-binance' : '');
+                    
+                    const time = new Date(a.timestamp).toLocaleTimeString();
+                    
+                    const el = document.createElement('div');
+                    el.className = `alert-item ${sourceClass}`;
+                    el.innerHTML = `
+                        <div class="alert-header">
+                            <span>${a.source}</span>
+                            <span>${time}</span>
+                        </div>
+                        <div class="alert-title">${a.title}</div>
+                        <div class="alert-msg">${a.message}</div>
+                    `;
+                    list.appendChild(el);
+                });
+
+            } catch(e) { console.error("Error fetching alerts", e); }
+        }
+
+        // Initialize
+        fetchStatus();
+        fetchAlerts();
+
+        // Polling (every 2 seconds)
+        setInterval(fetchStatus, 2000);
+        setInterval(fetchAlerts, 2000);
+
+    </script>
+</body>
+</html>
