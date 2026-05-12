@@ -54,14 +54,15 @@ Real-time multi-source intelligence platform. Monitors financial markets, ship m
 
 ## Source Modules
 
-| Module | What it monitors | Signal fires when |
-|--------|-----------------|-------------------|
-| **Binance** | OI + funding rate, perpetuals (BTC/ETH/SOL/…) | Z-score >2.5σ — extreme leverage buildup |
-| **Deribit** | Options IV chain BTC/ETH, gamma exposure | IV spike or crush, unusual volume |
-| **Polymarket** | Prediction markets — politics, macro, crypto | Probability shift >5% on large pools |
-| **AIS / Ships** | Vessel movements in strategic straits (Hormuz, Suez, Malacca, Taiwan…) | Tanker stopped, speed anomaly |
-| **RSS / News** | 15+ global feeds (Reuters, BBC, OilPrice, shipping news, KNF, NBP…) | Keywords mapped to instruments |
-| **Copernicus** | Sentinel-2: crop health (NDVI), port activity | Activated on-demand by the agent only |
+| Module | What it monitors | Signal fires when | Status |
+|--------|-----------------|-------------------|--------|
+| **Binance** | OI + funding rate, perpetuals (BTC/ETH/SOL/…) | Z-score >2.5σ — extreme leverage buildup | ✅ Live (public API) |
+| **Deribit** | Options IV chain BTC/ETH, gamma exposure | IV spike or crush, unusual volume | ✅ Live (public API) |
+| **Polymarket** | Prediction markets — politics, macro, crypto | Probability shift >5% on large pools | ✅ Live (public API) |
+| **AIS / Ships** | Vessel movements in strategic straits (Hormuz, Suez, Malacca, Taiwan…) | Tanker stopped, speed anomaly | 🔑 `AISSTREAM_API_KEY` |
+| **RSS / News** | 15+ global feeds (Reuters, BBC, OilPrice, shipping news, KNF, NBP…) | Keywords mapped to instruments | ✅ Live (public feeds) |
+| **Copernicus** | Sentinel-2: crop health (NDVI), port activity | Activated on-demand by the agent only | 🔑 `SENTINEL_HUB_*` |
+| **LLM Agent** | Synthesizes all signals, writes feed, activates modules | Triggered on HIGH/CRITICAL or every 5 min | 🔑 Any LLM key |
 
 ---
 
@@ -102,6 +103,34 @@ Dashboard available at **http://localhost:8000**
 
 ---
 
+## Intelligence Lens
+
+When the agent writes a `HIGH` or `CRITICAL` feed entry, the dashboard opens an **intelligence lens** — a focused situation picture for that event.
+
+```
+┌─────────────────────────┬──────────────────────────────────────┐
+│                         │  ⚠ OIL SUPPLY RISK  [CRITICAL]       │
+│   WORLD MAP             │                                      │
+│   (Leaflet, dark)       │  Tanker Kharg stopped in Hormuz.     │
+│                         │  Deribit IV +18%. Polymarket war     │
+│   ● Hormuz  (pulsing)   │  odds up 9%. Watching for further    │
+│                         │  AIS anomalies and IV expansion.     │
+│                         │  ──────────────────────────────────  │
+│                         │  Watch: OIL · GOLD · AIS_HORMUZ      │
+│                         │  ──────────────────────────────────  │
+│                         │  14:23  ais      Tanker stopped      │
+│                         │  14:31  deribit  IV spike +18%       │
+│                         │  14:39  rss      "Iran warns of..."  │
+└─────────────────────────┴──────────────────────────────────────┘
+```
+
+- Map zooms automatically to the relevant geographic zone (Hormuz, Suez, Black Sea…)
+- A pulsing marker shows the epicentre; colour matches the severity
+- If a new `CRITICAL` arrives while the lens is open, a flashing badge appears — user decides when to switch
+- Lens opens via `WebSocket type: "incident"`; also queryable at `GET /incidents/current`
+
+---
+
 ## Environment — `.env`
 
 ```env
@@ -131,53 +160,69 @@ DeepSeek is the default recommendation — significantly cheaper than Claude/Ope
 
 ---
 
+## API Reference
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /` | Browser dashboard — live feed + intelligence lens |
+| `GET /feed` | Agent-written feed entries (JSON) |
+| `GET /signals` | Recent signals from all sources |
+| `GET /escalations` | Agent escalation history |
+| `GET /incidents` | All assembled incidents (newest first) |
+| `GET /incidents/current` | Latest active incident (lens data) |
+| `GET /polling-rates` | Current polling intervals per source |
+| `POST /polling-rates/{source}?seconds=N` | Override polling interval |
+| `WS /ws/feed` | Live stream — signals, escalations, incidents |
+
+---
+
 ## Repository Structure
 
 ```
 src/
   core/
-    models.py          # RawEvent, Signal, EscalationDecision, Severity
-    event_bus.py       # Central async event bus; manages per-source polling rates
+    models.py          # RawEvent, Signal, EscalationDecision, Incident
+    event_bus.py       # Async event bus — signals, escalations, incidents
 
   sources/
-    rss/
-      harvester.py     # 15+ feeds, keyword→instrument routing, severity tagging
-      feeds.py         # Feed list + keyword→instrument map
-    binance/
-      client.py        # OI + funding Z-score detection across 7 symbols
-    deribit/
-      client.py        # Volume-weighted IV, gamma flip estimate, spike/crush detection
-    polymarket/
-      client.py        # Prob shift detection, free-money scanner, topic tagging
-    ais/
-      client.py        # aisstream.io WebSocket, 8 strategic zones, vessel anomaly detection
-    copernicus/
-      client.py        # ESA Sentinel-2 NDVI + port activity (agent-activated on demand)
+    rss/harvester.py   # 15+ feeds, keyword→instrument routing, severity tagging
+    rss/feeds.py       # Feed list + keyword→instrument map
+    binance/client.py  # OI + funding Z-score across 7 symbols
+    deribit/client.py  # Volume-weighted IV, gamma flip, spike/crush detection
+    polymarket/client.py  # Prob shift detection, free-money scanner, topic tagging
+    ais/client.py      # aisstream.io WebSocket, 8 strategic zones, vessel anomaly
+    copernicus/client.py  # ESA Sentinel-2 NDVI + port activity (on-demand)
 
   agent/
-    orchestrator.py    # Main LLM agent (Claude tool use) — decides what to do
+    orchestrator.py    # LLM agent — evaluates signals, creates incidents, writes feed
+    llm.py             # Provider abstraction: Claude / DeepSeek / OpenAI / local
     correlations.py    # 6 rule-based cross-domain triggers (instant, zero LLM cost)
-    context.py         # Builds structured context bundle from recent signals for LLM
+    context.py         # Builds structured context bundle for LLM
 
   api/
-    server.py          # FastAPI: REST + WebSocket /ws/feed + browser dashboard
+    server.py          # FastAPI: REST + WebSocket + intelligence lens dashboard
 
   runner.py            # Async entry point — starts all modules concurrently
 ```
 
 ---
 
-## API Reference
+## What's Missing / Open Items
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /` | Browser dashboard (live feed UI) |
-| `GET /feed` | Agent-written feed entries (JSON) |
-| `GET /signals` | Recent signals from all sources |
-| `GET /escalations` | Agent escalation history |
-| `GET /polling-rates` | Current polling intervals per source |
-| `POST /polling-rates/{source}?seconds=N` | Override polling interval |
-| `WS /ws/feed` | WebSocket — live stream of signals and escalations |
+These are the gaps between what's implemented and what a production deployment would need. Useful for contributors or evaluators.
+
+| Item | Current state | What's needed |
+|------|--------------|---------------|
+| **Session memory** | Agent sees last 30 signals each call; no cross-session continuity | Vector store or long-context summary of past incidents |
+| **Historical storage** | Signals in-memory only; lost on restart | SQLite / TimescaleDB persistence |
+| **RSS classification** | Keyword matching only | LLM embeddings for thematic classification (reduces false positives) |
+| **Sentinel-2 pipeline** | Simplified NDVI response; real rasterio parsing stubbed out | Full `rasterio` pipeline for actual GeoTIFF processing |
+| **FRED / macro** | Streamers exist in `src/streamers/fred_streamer.py` but not wired to signal engine | Connect to event bus, add Z-score anomaly detection |
+| **Cost tracking** | 45s LLM cooldown only | Token usage counter, per-provider cost estimate in `/health` |
+| **Auth layer** | No authentication | API key middleware for multi-user / institutional deployment |
+| **PDF reports** | Not implemented | Periodic synthesis report from accumulated incidents |
+| **Mobile / Telegram** | Removed (was in scope) | Push notification channel for CRITICAL alerts |
+| **Multi-agent** | Single orchestrator for all domains | Separate agents per domain (crypto, maritime, macro) with a meta-agent |
 
 ---
 
@@ -186,21 +231,22 @@ src/
 **Q1 — current (TRL III→IV)**
 - [x] Signal engine with Z-score, anti-flapping, data quality gates
 - [x] Source modules: Binance, Deribit, Polymarket, AIS, RSS, Copernicus
-- [x] LLM agent with cross-domain correlation rules
-- [x] Live feed WebSocket + browser dashboard
+- [x] LLM agent with cross-domain correlation rules + provider abstraction
+- [x] Live feed WebSocket + intelligence lens dashboard (map + incident card)
 
 **Q2 — critical point detection**
+- [ ] Session memory — long-context incident awareness
+- [ ] Historical storage — SQLite persistence
 - [ ] Thematic RSS classification (LLM embeddings)
-- [ ] Thematic session memory (long-context awareness)
-- [ ] Telegram alerts for CRITICAL signals
 - [ ] First synthetic PDF report
+- [ ] FRED macro integration
 
 **Q3 — institutional pilot**
 - [ ] Multi-agent: dedicated agent per domain
 - [ ] GUS / KNF / Eurostat integration
-- [ ] SSO for institutional deployments
+- [ ] Auth layer for institutional deployments
 - [ ] Full Sentinel-2 rasterio pipeline
 
 ---
 
-*Vortex Analytica · TRL II→V · AI/LLM · Dual-use (MVP: civilian) · B2B/B2G*
+*Vortex Analytica · TRL III→IV · AI/LLM · Dual-use (MVP: civilian) · B2B/B2G*

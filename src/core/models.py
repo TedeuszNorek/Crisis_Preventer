@@ -55,3 +55,30 @@ class EscalationDecision:
     priority: int          # 1=low … 5=critical
     agent_commentary: str
     ts: float = field(default_factory=time.time)
+
+
+@dataclass
+class Incident:
+    """A focused intelligence picture assembled by the agent for one event."""
+    incident_id: str
+    title: str
+    severity: str           # "HIGH" | "CRITICAL"
+    commentary: str         # agent-written synthesis
+    instruments: List[str]  # tickers/zones to watch (e.g. OIL, AIS_SUEZ)
+    zone: Optional[str]     # geographic zone if identified (e.g. "hormuz")
+    timeline: List[Dict[str, Any]]  # [{ts, source, title, severity}]
+    ts: float = field(default_factory=time.time)
+    active: bool = True
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "incident_id": self.incident_id,
+            "title": self.title,
+            "severity": self.severity,
+            "commentary": self.commentary,
+            "instruments": self.instruments,
+            "zone": self.zone,
+            "timeline": self.timeline,
+            "ts": self.ts,
+            "active": self.active,
+        }

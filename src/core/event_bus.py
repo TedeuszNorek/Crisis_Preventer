@@ -6,7 +6,7 @@ import logging
 from collections import deque
 from typing import Callable, Deque, Dict, List, Optional
 
-from .models import EscalationDecision, RawEvent, Signal
+from .models import EscalationDecision, Incident, RawEvent, Signal
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,11 @@ class EventBus:
 
         self._signal_history: Deque[Signal] = deque(maxlen=_MAX_HISTORY)
         self._escalation_history: Deque[EscalationDecision] = deque(maxlen=50)
+        self._incident_history: Deque[Incident] = deque(maxlen=50)
 
         self._signal_subscribers: List[Callable] = []
         self._escalation_subscribers: List[Callable] = []
+        self._incident_subscribers: List[Callable] = []
 
         # Per-source polling rates (seconds); agent can modify these
         self.polling_rates: Dict[str, int] = {
@@ -59,6 +61,14 @@ class EventBus:
             except Exception as exc:
                 logger.error(f"Escalation subscriber error: {exc}")
 
+    async def publish_incident(self, incident: Incident) -> None:
+        self._incident_history.append(incident)
+        for cb in self._incident_subscribers:
+            try:
+                await cb(incident)
+            except Exception as exc:
+                logger.error(f"Incident subscriber error: {exc}")
+
     # ── Subscriptions ────────────────────────────────────────────────────────
 
     def on_signal(self, cb: Callable) -> None:
@@ -67,6 +77,9 @@ class EventBus:
     def on_escalation(self, cb: Callable) -> None:
         self._escalation_subscribers.append(cb)
 
+    def on_incident(self, cb: Callable) -> None:
+        self._incident_subscribers.append(cb)
+
     # ── Queries ──────────────────────────────────────────────────────────────
 
     def recent_signals(self, n: int = 20) -> List[Signal]:
@@ -74,6 +87,9 @@ class EventBus:
 
     def recent_escalations(self, n: int = 5) -> List[EscalationDecision]:
         return list(self._escalation_history)[-n:]
+
+    def recent_incidents(self, n: int = 10) -> List[Incident]:
+        return list(self._incident_history)[-n:]
 
     def set_polling_rate(self, source: str, seconds: int) -> None:
         old = self.polling_rates.get(source, "?")

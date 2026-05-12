@@ -16,20 +16,36 @@ Tool use schema:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from src.core.event_bus import bus
-from src.core.models import EscalationDecision, Signal, Severity
+from src.core.models import EscalationDecision, Incident, Signal, Severity
 from src.sources.copernicus.client import satellite
 from .context import build_context, context_to_prompt
 from .correlations import matching_rules
 from .llm import LLMClient
 
 logger = logging.getLogger(__name__)
+
+# Maps instrument tags → geographic zone names (used by the lens map)
+_INSTRUMENT_ZONE_MAP: Dict[str, str] = {
+    "AIS_HORMUZ": "hormuz",
+    "AIS_SUEZ": "suez_port",
+    "AIS_MALACCA": "malacca",
+    "AIS_TAIWAN": "taiwan_strait",
+    "AIS_BLACK_SEA": "black_sea",
+    "AIS_BALTIC": "gdansk_port",
+    "AIS_GLOBAL": "",
+    "OIL": "hormuz",
+    "OIL_FUTURES": "hormuz",
+    "WHEAT": "ukraine_wheat",
+}
 
 # ── Claude tool definitions ──────────────────────────────────────────────────
 
@@ -157,9 +173,11 @@ class VortexOrchestrator:
     def __init__(self) -> None:
         self._llm = LLMClient()
         self._feed: List[FeedEntry] = []
+        self._incidents: List[Incident] = []
         self._last_agent_run: float = 0.0
         self._agent_cooldown = 45  # seconds between full LLM calls (cost control)
         self._pending_signals: List[Signal] = []
+        self._last_evaluated_signals: List[Signal] = []
         self._active_modules: Dict[str, bool] = {
             "binance": True, "deribit": True, "polymarket": True,
             "ais": True, "rss": True, "copernicus": False,
@@ -205,6 +223,7 @@ class VortexOrchestrator:
         self._last_agent_run = now
         signals_to_process = self._pending_signals.copy()
         self._pending_signals.clear()
+        self._last_evaluated_signals = signals_to_process
         asyncio.create_task(self._llm_evaluate(signals_to_process))
 
     async def _llm_evaluate(self, signals: List[Signal]) -> None:
@@ -235,6 +254,37 @@ class VortexOrchestrator:
         except Exception as exc:
             logger.error(f"[Agent/LLM] Error: {exc}")
 
+    def _detect_zone(self, instruments: List[str]) -> Optional[str]:
+        for inst in instruments:
+            zone = _INSTRUMENT_ZONE_MAP.get(inst.upper())
+            if zone:
+                return zone
+        return None
+
+    def _build_incident(self, inp: Dict[str, Any]) -> Incident:
+        instruments = inp.get("instruments", [])
+        recent = bus.recent_signals(15)
+        timeline = [
+            {"ts": s.ts, "source": s.source, "title": s.title, "severity": s.severity.value}
+            for s in (recent + self._last_evaluated_signals)[-12:]
+        ]
+        seen: set = set()
+        unique_timeline = []
+        for item in sorted(timeline, key=lambda x: x["ts"]):
+            key = item["title"]
+            if key not in seen:
+                seen.add(key)
+                unique_timeline.append(item)
+        return Incident(
+            incident_id=str(uuid.uuid4())[:8],
+            title=inp["text"][:100],
+            severity=inp["severity"],
+            commentary=inp["text"],
+            instruments=instruments,
+            zone=self._detect_zone(instruments),
+            timeline=unique_timeline[-8:],
+        )
+
     async def _handle_tool_calls(self, response: Any) -> None:
         for block in response.tool_calls:
             name = block["name"]
@@ -251,6 +301,14 @@ class VortexOrchestrator:
                 if len(self._feed) > 200:
                     self._feed.pop(0)
                 logger.info(f"[Feed] [{entry.severity}] {entry.text[:100]}")
+
+                if inp["severity"] in ("HIGH", "CRITICAL"):
+                    incident = self._build_incident(inp)
+                    self._incidents.append(incident)
+                    if len(self._incidents) > 50:
+                        self._incidents.pop(0)
+                    await bus.publish_incident(incident)
+                    logger.info(f"[Lens] Incident created: {incident.incident_id} zone={incident.zone}")
 
             elif name == "activate_module":
                 module = inp["module"]
@@ -280,10 +338,13 @@ class VortexOrchestrator:
         if result:
             logger.info(f"[Agent] Satellite scan {zone}: {result.title}")
 
-    # ── Feed API ──────────────────────────────────────────────────────────────
+    # ── Feed + Incident API ───────────────────────────────────────────────────
 
     def get_feed(self, limit: int = 50) -> List[Dict]:
         return [e.to_dict() for e in reversed(self._feed[-limit:])]
+
+    def get_incidents(self, limit: int = 20) -> List[Dict]:
+        return [i.to_dict() for i in reversed(self._incidents[-limit:])]
 
     # ── Main loop ─────────────────────────────────────────────────────────────
 
