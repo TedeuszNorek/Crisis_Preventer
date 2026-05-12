@@ -1,3 +1,4 @@
+import os
 import time
 import requests
 import logging
@@ -13,11 +14,9 @@ except ImportError:
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [ArbitrageBot] %(message)s")
 
-# 1. Konfiguracja Portfela Polygon (Sieć Mainnet)
 HOST = "https://clob.polymarket.com"
-CHAIN_ID = 137 # Polygon Mainnet
-# Twoje klucze prywatne do portfela przesyłane z bezpiecznego .env
-PRIVATE_KEY = "0xTWOJ_KLUCZ_PRYWATNY_Z_METAMASK" 
+CHAIN_ID = 137  # Polygon Mainnet
+PRIVATE_KEY = os.getenv("POLYMARKET_PRIVATE_KEY", "")
 
 class ResolutionArbitrageBot:
     def __init__(self, market_token_id, target_price, deadline_str):

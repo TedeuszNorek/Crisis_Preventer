@@ -1,24 +1,40 @@
+# Secrets
 .env
+*.key
+*.pem
+*.p12
+
+# Python
 .venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+*.egg-info/
+dist/
+build/
 
-# Database files
+# Database / storage
 *.db
 *.sqlite3
+data/
+
+# Debug / temp outputs
+*_debug.json
+scratch/
+*.log
+url.txt
+plan_request.txt
+
+# IDE
+.vscode/settings.json
+.idea/
 
 # macOS
 .DS_Store
-
-# Data dumps
-data/
-scratch/
-*.log

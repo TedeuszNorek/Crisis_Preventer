@@ -1,5 +1,0 @@
-I have analyzed the app.jsx and twa_server.py files.
-I found that several metrics used in the UI (ivSkew, netDelta, maxPainDist) are currently missing from the backend response.
-I have created a detailed implementation plan to fix state management issues, incorporate these missing institutional metrics, and polish the UI.
-
-Please review the implementation plan.
