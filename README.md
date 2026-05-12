@@ -43,6 +43,8 @@ By ingesting **Alternative Data (AltData)** from Copernicus Sentinel-2 satellite
 ## ✨ Key Features
 
 *   🛰️ **Satellite Data Ingestion (AltData):** Automated pipelines processing Sentinel-2 L2A satellite data to monitor vegetation indices (NDVI, EVI) and forecast crop yields using LightGBM + Prophet.
+*   🚢 **Maritime & Logistics Intelligence (AIS API):** Tracking global supply chain bottlenecks by integrating live ship location data (AIS) and port activity metrics to detect logistical anomalies.
+*   📰 **RSS & NLP Sentiment Engine:** Continuous ingestion of global news feeds via RSS with automated sentiment tagging and contextual analysis (Crisis/Opportunity detection) utilizing advanced language models.
 *   ⚡ **Real-Time Arbitrage Engine:** Ingests high-frequency data via WebSockets to detect risk-neutral probability spreads and execution opportunities between Polymarket and Binance/Deribit.
 *   📊 **Institutional Hedging Analytics:** Calculates critical options market metrics including **Gamma Flip price levels** and **Delta Hedging sensitivity** to anticipate institutional liquidity risks and reflexivity.
 *   🛡️ **Robust Signal Architecture:** Built around a strict `SignalContract v1` schema. Features built-in anti-flapping mechanisms, data drift detection, and rigorous data quality gates to prevent false positives in high-volatility environments.
@@ -54,9 +56,15 @@ By ingesting **Alternative Data (AltData)** from Copernicus Sentinel-2 satellite
 
 ```mermaid
 graph TD
+    subgraph Text & NLP Contextualization
+        RSS[RSS News Feeds] --> NLP[Sentiment & NLP Engine]
+        NLP -->|Crisis/Risk Sentiment| SC
+    end
+
     subgraph Alternative Data Layer
         S2[Sentinel-2 Satellite] -->|API| SI[Satellite Data Ingest]
-        SI -->|NDVI/EVI| YF[Yield Forecast Engine]
+        AIS[Maritime/AIS Ship API] -->|API| SI
+        SI -->|NDVI/Port Activity| YF[Yield & Supply Forecast Engine]
         YF -->|Commodity Signals| SC
     end
 
