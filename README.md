@@ -74,14 +74,18 @@ Rules live in `src/agent/correlations.py`. Each rule has a named trigger functio
 
 | Rule | Trigger | Min severity | Activates | Satellite scan |
 |------|---------|-------------|-----------|----------------|
-| `maritime_disruption` | AIS anomaly in Suez / Hormuz / Bab el-Mandeb / Taiwan / Malacca | HIGH | Polymarket · Deribit · Binance | Suez · Hormuz |
-| `iv_spike_macro_check` | Deribit IV spike (`SPIKE` in title) | HIGH | RSS · Polymarket | — |
+| `ais_oil_choke_point` | AIS anomaly in Hormuz / Bab el-Mandeb / Suez | HIGH | Deribit · Polymarket | Hormuz · Suez |
+| `ais_trade_choke_point` | AIS anomaly in Taiwan Strait / Malacca / Baltic | HIGH | Binance · Polymarket | — |
+| `iv_spike_macro_check` | Deribit IV spike | HIGH | RSS · Polymarket | — |
 | `binance_extreme_funding` | Binance funding rate Z-score | CRITICAL | Deribit · Polymarket · RSS | — |
-| `conflict_news` | RSS signal in category `conflict` | HIGH | AIS · Polymarket · Deribit | Black Sea · Suez · Hormuz |
-| `supply_disruption_news` | RSS signal in category `supply_disruption` | HIGH | AIS · Deribit · Polymarket | Hormuz · Suez |
-| `commodity_satellite` | RSS signal in category `commodity_supply` | MEDIUM | Polymarket | Ukraine wheat |
+| `conflict_news` | RSS category `conflict` | HIGH | AIS · Polymarket · Deribit | Black Sea · Suez · Hormuz |
+| `supply_disruption_news` | RSS category `supply_disruption` | HIGH | AIS · Deribit · Polymarket | Hormuz · Suez |
+| `commodity_satellite` | RSS category `commodity_supply` | MEDIUM | Polymarket | Ukraine wheat |
+| `political_risk_news` | RSS category `political_risk` (coup, election, state of emergency) | HIGH | Polymarket · Binance | — |
+| `crypto_stress_news` | RSS category `crypto_stress` (exploit, depeg, exchange collapse) | HIGH | Deribit · Binance · Polymarket | — |
+| `monetary_shock_news` | RSS category `monetary_policy` (surprise rate decision) | HIGH | Binance · Deribit · Polymarket | — |
 | `polymarket_repricing` | Polymarket prob shift > 10% | HIGH | RSS · Binance | — |
-| `satellite_port_anomaly` | Copernicus: "low port activity" | any | AIS · Polymarket | — |
+| `satellite_port_anomaly` | Copernicus: low port activity | any | AIS · Polymarket | — |
 
 **How RSS categories work:** the harvester matches articles against `KeywordRule` definitions in `src/sources/rss/feeds.py`. Each category owns its keyword list and minimum severity — e.g. `conflict` fires on `invasion`, `airstrike`, `military offensive` etc. and requires HIGH. A single article can match multiple categories simultaneously, activating multiple rules.
 
@@ -264,7 +268,7 @@ Event ontology graph (Neo4j), full simulation layer (Mesa/AnyLogic), GNN-based r
 
 ## Roadmap
 
-**Q1 — current (TRL III→IV)**
+**Q1 — current**
 - [x] Signal engine with Z-score, anti-flapping, data quality gates
 - [x] Source modules: Binance, Deribit, Polymarket, AIS, RSS, Copernicus
 - [x] LLM agent with cross-domain correlation rules + provider abstraction
@@ -289,4 +293,4 @@ Event ontology graph (Neo4j), full simulation layer (Mesa/AnyLogic), GNN-based r
 
 ---
 
-*Vortex Analytica · TRL III→IV · AI/LLM · Dual-use (MVP: civilian) · B2B/B2G*
+*Vortex Analytica — real-time multi-source intelligence for markets and geopolitics*

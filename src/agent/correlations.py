@@ -16,7 +16,11 @@ from typing import Callable, List
 from src.core.models import Domain, Signal, Severity
 
 _HIGH_PLUS = {Severity.HIGH, Severity.CRITICAL}
-_STRATEGIC_ZONES = {"suez", "hormuz", "bab_el_mandeb", "taiwan_strait", "malacca"}
+
+# Oil/energy choke points: anomaly here → oil derivatives + conflict odds
+_OIL_ZONES = {"hormuz", "bab_el_mandeb", "suez"}
+# Trade/semiconductor choke points: anomaly here → macro risk-off + supply chain
+_TRADE_ZONES = {"taiwan_strait", "malacca", "baltic"}
 
 
 @dataclass
@@ -33,11 +37,19 @@ class CorrelationRule:
 
 # ── Trigger functions ────────────────────────────────────────────────────────
 
-def _is_strategic_ais_anomaly(s: Signal) -> bool:
+def _is_oil_zone_ais_anomaly(s: Signal) -> bool:
     return (
         s.source == "ais"
         and s.severity in _HIGH_PLUS
-        and any(z in str(s.context) for z in _STRATEGIC_ZONES)
+        and any(z in str(s.context) for z in _OIL_ZONES)
+    )
+
+
+def _is_trade_zone_ais_anomaly(s: Signal) -> bool:
+    return (
+        s.source == "ais"
+        and s.severity in _HIGH_PLUS
+        and any(z in str(s.context) for z in _TRADE_ZONES)
     )
 
 
@@ -53,6 +65,30 @@ def _is_extreme_binance_funding(s: Signal) -> bool:
     return (
         s.source == "binance"
         and s.severity == Severity.CRITICAL
+    )
+
+
+def _is_political_risk_news(s: Signal) -> bool:
+    return (
+        s.source == "rss"
+        and s.severity in _HIGH_PLUS
+        and "political_risk" in s.context.get("categories", [])
+    )
+
+
+def _is_crypto_stress_news(s: Signal) -> bool:
+    return (
+        s.source == "rss"
+        and s.severity in _HIGH_PLUS
+        and "crypto_stress" in s.context.get("categories", [])
+    )
+
+
+def _is_monetary_shock_news(s: Signal) -> bool:
+    return (
+        s.source == "rss"
+        and s.severity in _HIGH_PLUS
+        and "monetary_policy" in s.context.get("categories", [])
     )
 
 
@@ -99,14 +135,25 @@ def _is_satellite_port_anomaly(s: Signal) -> bool:
 RULES: List[CorrelationRule] = [
 
     CorrelationRule(
-        name="maritime_disruption",
-        description="AIS vessel stopped or anomalous in a strategic strait",
-        trigger=_is_strategic_ais_anomaly,
-        activate_sources=["polymarket", "deribit", "binance"],
-        activate_sat_zones=["suez_port", "hormuz"],
-        bump_polling={"ais": 15, "polymarket": 30, "binance": 15},
+        name="ais_oil_choke_point",
+        description="Vessel anomaly in Hormuz / Bab el-Mandeb / Suez — oil supply chain at risk",
+        trigger=_is_oil_zone_ais_anomaly,
+        activate_sources=["deribit", "polymarket"],
+        activate_sat_zones=["hormuz", "suez_port"],
+        bump_polling={"ais": 10, "deribit": 20, "polymarket": 30},
+        priority=5,
+        rationale="Oil choke point disruption → check oil proxy (Deribit IV) + conflict odds (Polymarket)",
+    ),
+
+    CorrelationRule(
+        name="ais_trade_choke_point",
+        description="Vessel anomaly in Taiwan Strait / Malacca / Baltic — global trade + semiconductors",
+        trigger=_is_trade_zone_ais_anomaly,
+        activate_sources=["binance", "polymarket"],
+        activate_sat_zones=[],
+        bump_polling={"ais": 15, "binance": 15, "polymarket": 30},
         priority=4,
-        rationale="Vessel anomaly in strategic strait → check oil/commodity markets + prediction markets",
+        rationale="Trade choke point disruption → check macro risk-off (Binance funding) + conflict odds",
     ),
 
     CorrelationRule(
@@ -184,6 +231,39 @@ RULES: List[CorrelationRule] = [
         bump_polling={"ais": 15},
         priority=4,
         rationale="Satellite confirms port disruption → cross-check with AIS live vessel data",
+    ),
+
+    CorrelationRule(
+        name="political_risk_news",
+        description="HIGH+ RSS signal in 'political_risk' category (coup, election, state of emergency)",
+        trigger=_is_political_risk_news,
+        activate_sources=["polymarket", "binance"],
+        activate_sat_zones=[],
+        bump_polling={"polymarket": 30, "binance": 20, "rss": 90},
+        priority=4,
+        rationale="Political shock → check prediction markets (fastest repricing) + crypto risk-off",
+    ),
+
+    CorrelationRule(
+        name="crypto_stress_news",
+        description="HIGH+ RSS signal in 'crypto_stress' category (exploit, depeg, exchange collapse)",
+        trigger=_is_crypto_stress_news,
+        activate_sources=["deribit", "polymarket", "binance"],
+        activate_sat_zones=[],
+        bump_polling={"binance": 10, "deribit": 15, "polymarket": 30},
+        priority=4,
+        rationale="Crypto stress event → check IV spike (Deribit), liquidation cascade (Binance), odds (Polymarket)",
+    ),
+
+    CorrelationRule(
+        name="monetary_shock_news",
+        description="HIGH+ RSS signal in 'monetary_policy' category (surprise rate decision, emergency CB meeting)",
+        trigger=_is_monetary_shock_news,
+        activate_sources=["binance", "deribit", "polymarket"],
+        activate_sat_zones=[],
+        bump_polling={"binance": 15, "deribit": 20, "polymarket": 45},
+        priority=3,
+        rationale="Monetary shock → check crypto funding reaction (Binance) + vol repricing (Deribit)",
     ),
 
 ]
