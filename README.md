@@ -10,8 +10,8 @@ Real-time multi-source intelligence platform. Monitors financial markets, ship m
 ┌─────────────────────────────────────────────────────────────────┐
 │                         DATA SOURCES                            │
 │                                                                 │
-│   RSS / News  ·  AIS / Ships  ·  Copernicus (satellite)        │
-│   Binance Futures  ·  Deribit Options  ·  Polymarket  ·  FRED  │
+│   RSS / News  ·  AIS / Ships  ·  Copernicus (satellite)         │
+│   Binance Futures  ·  Deribit Options  ·  Polymarket  ·  FRED   │
 │                                                                 │
 └──────────────────────────┬──────────────────────────────────────┘
                            │  RawEvents
