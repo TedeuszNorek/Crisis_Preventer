@@ -68,16 +68,27 @@ Real-time multi-source intelligence platform. Monitors financial markets, ship m
 
 ## Cross-Domain Correlations
 
-The agent does not look at modules in isolation. When one source signals a problem, correlated sources are activated automatically:
+The agent does not look at modules in isolation. When one source fires a signal, correlated sources are activated automatically — without LLM involvement, for speed.
 
-| Trigger | Agent activates |
-|---------|----------------|
-| AIS: tanker stopped in Hormuz | Deribit IV (oil proxy), Polymarket (conflict odds), Copernicus (port scan) |
-| Deribit IV spike | RSS (find the news driver), Polymarket (market repricing) |
-| RSS: "war" / "blockade" / "sanctions" | AIS (shipping disruption), Copernicus (satellite), Deribit (volatility) |
-| Polymarket: +10% probability shift | RSS (what happened), Binance (market reaction) |
-| Copernicus: low port activity | AIS (cross-check with live ship data) |
-| Binance: extreme funding rate | Deribit, Polymarket, RSS (squeeze driver) |
+Rules live in `src/agent/correlations.py`. Each rule has a named trigger function, a minimum severity threshold, and explicit polling-rate overrides for the activated sources.
+
+| Rule | Trigger | Min severity | Activates | Satellite scan |
+|------|---------|-------------|-----------|----------------|
+| `maritime_disruption` | AIS anomaly in Suez / Hormuz / Bab el-Mandeb / Taiwan / Malacca | HIGH | Polymarket · Deribit · Binance | Suez · Hormuz |
+| `iv_spike_macro_check` | Deribit IV spike (`SPIKE` in title) | HIGH | RSS · Polymarket | — |
+| `binance_extreme_funding` | Binance funding rate Z-score | CRITICAL | Deribit · Polymarket · RSS | — |
+| `conflict_news` | RSS signal in category `conflict` | HIGH | AIS · Polymarket · Deribit | Black Sea · Suez · Hormuz |
+| `supply_disruption_news` | RSS signal in category `supply_disruption` | HIGH | AIS · Deribit · Polymarket | Hormuz · Suez |
+| `commodity_satellite` | RSS signal in category `commodity_supply` | MEDIUM | Polymarket | Ukraine wheat |
+| `polymarket_repricing` | Polymarket prob shift > 10% | HIGH | RSS · Binance | — |
+| `satellite_port_anomaly` | Copernicus: "low port activity" | any | AIS · Polymarket | — |
+
+**How RSS categories work:** the harvester matches articles against `KeywordRule` definitions in `src/sources/rss/feeds.py`. Each category owns its keyword list and minimum severity — e.g. `conflict` fires on `invasion`, `airstrike`, `military offensive` etc. and requires HIGH. A single article can match multiple categories simultaneously, activating multiple rules.
+
+**Polling overrides on activation** (examples):
+- `maritime_disruption` → AIS: 30s → 15s, Binance: 30s → 15s
+- `conflict_news` → AIS: 30s → 20s, RSS: 300s → 90s
+- `binance_extreme_funding` → Binance: 30s → 10s, Deribit: 60s → 20s
 
 ---
 
