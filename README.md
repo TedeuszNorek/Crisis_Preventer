@@ -211,18 +211,43 @@ src/
 
 These are the gaps between what's implemented and what a production deployment would need. Useful for contributors or evaluators.
 
+**Signal quality**
+
 | Item | Current state | What's needed |
 |------|--------------|---------------|
-| **Session memory** | Agent sees last 30 signals each call; no cross-session continuity | Vector store or long-context summary of past incidents |
+| **Confidence score** | Z-score per source only | Combined score: `f(z_score, source_count, cross_domain_confirmations)` — displayed in feed and lens |
+| **Cross-source deduplication** | Per-source hash dedup only | Fuzzy title match + 15-min window to collapse the same event reported by RSS + AIS simultaneously |
+| **Signal ranking** | Severity only | Novelty × cross-domain confirmation × urgency — requires labeled feedback data first |
+| **Explainability endpoint** | None | `GET /signals/{id}/explain` — which signals confirmed, which correlation rules fired, what the agent decided and why |
+
+**User feedback**
+
+| Item | Current state | What's needed |
+|------|--------------|---------------|
+| **In-dashboard feedback** | None | `✓ useful` / `✗ noise` buttons on each feed entry; stored in SQLite for future ranking model training |
+| **Session memory** | Agent sees last 30 signals per call; no cross-session continuity | Vector store or long-context summary of past incidents |
+
+**Data & storage**
+
+| Item | Current state | What's needed |
+|------|--------------|---------------|
 | **Historical storage** | Signals in-memory only; lost on restart | SQLite / TimescaleDB persistence |
 | **RSS classification** | Keyword matching only | LLM embeddings for thematic classification (reduces false positives) |
 | **Sentinel-2 pipeline** | Simplified NDVI response; real rasterio parsing stubbed out | Full `rasterio` pipeline for actual GeoTIFF processing |
 | **FRED / macro** | Streamers exist in `src/streamers/fred_streamer.py` but not wired to signal engine | Connect to event bus, add Z-score anomaly detection |
+
+**Deployment & scale**
+
+| Item | Current state | What's needed |
+|------|--------------|---------------|
 | **Cost tracking** | 45s LLM cooldown only | Token usage counter, per-provider cost estimate in `/health` |
 | **Auth layer** | No authentication | API key middleware for multi-user / institutional deployment |
 | **PDF reports** | Not implemented | Periodic synthesis report from accumulated incidents |
-| **Mobile / Telegram** | Removed (was in scope) | Push notification channel for CRITICAL alerts |
+| **Alert channel** | None | Push notifications (email / webhook) for CRITICAL signals |
 | **Multi-agent** | Single orchestrator for all domains | Separate agents per domain (crypto, maritime, macro) with a meta-agent |
+
+**Deliberately out of scope (for now)**
+Event ontology graph (Neo4j), full simulation layer (Mesa/AnyLogic), GNN-based ranking, RDF — all architecturally valid, all premature at this stage.
 
 ---
 
@@ -234,14 +259,18 @@ These are the gaps between what's implemented and what a production deployment w
 - [x] LLM agent with cross-domain correlation rules + provider abstraction
 - [x] Live feed WebSocket + intelligence lens dashboard (map + incident card)
 
-**Q2 — critical point detection**
-- [ ] Session memory — long-context incident awareness
+**Q2 — signal quality + trust**
+- [ ] Confidence score on every signal (z-score × cross-domain confirmation count)
+- [ ] `GET /signals/{id}/explain` — causal chain, confirmed-by, agent rationale
+- [ ] In-dashboard feedback loop (`✓ useful` / `✗ noise`) + SQLite storage
+- [ ] Cross-source deduplication (fuzzy match + time window)
 - [ ] Historical storage — SQLite persistence
 - [ ] Thematic RSS classification (LLM embeddings)
-- [ ] First synthetic PDF report
 - [ ] FRED macro integration
 
 **Q3 — institutional pilot**
+- [ ] Signal ranking model (trained on feedback from Q2)
+- [ ] First synthetic PDF report
 - [ ] Multi-agent: dedicated agent per domain
 - [ ] GUS / KNF / Eurostat integration
 - [ ] Auth layer for institutional deployments
