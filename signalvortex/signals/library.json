@@ -1,0 +1,343 @@
+[
+    {
+        "signal_id": "BTC_OI_SPIKE_1H",
+        "intent": "Detect sudden Open Interest increase > 5% in 1 hour indicating leverage build-up.",
+        "inputs": {
+            "source": "binance",
+            "entity_type": "instrument",
+            "required_features": [
+                "oi",
+                "oi_1h_ago",
+                "price",
+                "volume"
+            ]
+        },
+        "compute": {
+            "aggregation": "none",
+            "window_s": 3600
+        },
+        "rule": {
+            "feature": "oi_change_pct",
+            "operator": ">",
+            "base_threshold": 0.05
+        },
+        "anti_flapping": {
+            "hysteresis": {
+                "enter_threshold": 0.05,
+                "exit_threshold": 0.02
+            },
+            "for_duration_s": 60,
+            "cooldown_s": 3600
+        },
+        "data_quality_gate": {
+            "min_timeliness_s": 10,
+            "min_completeness": 0.95,
+            "min_consistency": 0.98
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "oi_change_pct"
+            ],
+            "baseline_window_d": 30,
+            "metrics": [
+                "KS",
+                "PSI"
+            ],
+            "action_on_drift": "raise_confidence_threshold"
+        },
+        "confidence": {
+            "base_score": 0.8,
+            "factors": [
+                "data_quality",
+                "volume_confluence"
+            ]
+        },
+        "severity": 3,
+        "evidence_pack": [
+            "current_oi",
+            "oi_1h_ago",
+            "price_change_1h"
+        ],
+        "dedupe_key": "{signal_id}_{entity_id}",
+        "lifecycle": {
+            "enabled": true,
+            "auto_resolve_s": 7200
+        },
+        "actions": [
+            "notify_user",
+            "tag_chart"
+        ],
+        "owner": "derivatives_team",
+        "tests": []
+    },
+    {
+        "signal_id": "AIS_DARK_FLEET_DETECT",
+        "intent": "Detect vessel stopping transmission in high-risk zone.",
+        "inputs": {
+            "source": "ais_stream",
+            "entity_type": "vessel",
+            "required_features": [
+                "last_ts",
+                "lat",
+                "lon",
+                "zone_risk_level"
+            ]
+        },
+        "compute": {
+            "aggregation": "none",
+            "window_s": 0
+        },
+        "rule": {
+            "feature": "silence_duration_h",
+            "operator": ">",
+            "base_threshold": 2.0
+        },
+        "anti_flapping": {
+            "hysteresis": {
+                "enter_threshold": 2.0,
+                "exit_threshold": 0.5
+            },
+            "for_duration_s": 300,
+            "cooldown_s": 86400
+        },
+        "data_quality_gate": {
+            "min_timeliness_s": 600,
+            "min_completeness": 0.90,
+            "min_consistency": 0.90
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "silence_duration_h"
+            ],
+            "baseline_window_d": 90,
+            "metrics": [
+                "JS",
+                "Wasserstein"
+            ],
+            "action_on_drift": "degrade_mode"
+        },
+        "confidence": {
+            "base_score": 0.9,
+            "factors": [
+                "zone_risk",
+                "vessel_history"
+            ]
+        },
+        "severity": 5,
+        "evidence_pack": [
+            "last_position",
+            "zone_name",
+            "vessel_type"
+        ],
+        "dedupe_key": "{signal_id}_{entity_id}",
+        "lifecycle": {
+            "enabled": true,
+            "auto_resolve_s": 86400
+        },
+        "actions": [
+            "escalate_to_analyst",
+            "log_incident"
+        ],
+        "owner": "geopol_team",
+        "tests": []
+    },
+    {
+        "signal_id": "FUNDING_EXTREME_SHORT",
+        "intent": "Detect extremely negative funding rate indicating overcrowded shorts.",
+        "inputs": {
+            "source": "binance",
+            "entity_type": "instrument",
+            "required_features": [
+                "funding_rate"
+            ]
+        },
+        "compute": {
+            "aggregation": "avg",
+            "window_s": 300
+        },
+        "rule": {
+            "feature": "funding_rate",
+            "operator": "<",
+            "base_threshold": -0.0005
+        },
+        "anti_flapping": {
+            "hysteresis": {
+                "enter_threshold": -0.0005,
+                "exit_threshold": -0.0001
+            },
+            "for_duration_s": 900,
+            "cooldown_s": 14400
+        },
+        "data_quality_gate": {
+            "min_timeliness_s": 5,
+            "min_completeness": 0.99,
+            "min_consistency": 0.99
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "funding_rate"
+            ],
+            "baseline_window_d": 30,
+            "metrics": [
+                "KS",
+                "PSI"
+            ],
+            "action_on_drift": "pause_signal"
+        },
+        "confidence": {
+            "base_score": 0.7,
+            "factors": [
+                "liquidity",
+                "open_interest"
+            ]
+        },
+        "severity": 4,
+        "evidence_pack": [
+            "funding_history_8h",
+            "oi_change"
+        ],
+        "dedupe_key": "{signal_id}_{entity_id}",
+        "lifecycle": {
+            "enabled": true,
+            "auto_resolve_s": 28800
+        },
+        "actions": [
+            "notify_trader"
+        ],
+        "owner": "derivatives_team",
+        "tests": []
+    },
+    {
+        "signal_id": "ETH_GAS_ANOMALY",
+        "intent": "Detect sudden spike in ETH gas prices indicating network congestion/nft mint.",
+        "inputs": {
+            "source": "onchain",
+            "entity_type": "network",
+            "required_features": [
+                "base_fee_gwei",
+                "priority_fee_gwei"
+            ]
+        },
+        "compute": {
+            "aggregation": "none",
+            "window_s": 0
+        },
+        "rule": {
+            "feature": "base_fee_gwei",
+            "operator": ">",
+            "base_threshold": 100.0
+        },
+        "anti_flapping": {
+            "hysteresis": {
+                "enter_threshold": 100.0,
+                "exit_threshold": 60.0
+            },
+            "for_duration_s": 120,
+            "cooldown_s": 1800
+        },
+        "data_quality_gate": {
+            "min_timeliness_s": 15,
+            "min_completeness": 0.95,
+            "min_consistency": 0.95
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "base_fee_gwei"
+            ],
+            "baseline_window_d": 7,
+            "metrics": [
+                "KS",
+                "Wasserstein"
+            ],
+            "action_on_drift": "raise_confidence_threshold"
+        },
+        "confidence": {
+            "base_score": 0.85,
+            "factors": [
+                "pending_tx_count"
+            ]
+        },
+        "severity": 2,
+        "evidence_pack": [
+            "avg_fee_1h",
+            "blob_count"
+        ],
+        "dedupe_key": "{signal_id}_{entity_id}",
+        "lifecycle": {
+            "enabled": true,
+            "auto_resolve_s": 3600
+        },
+        "actions": [
+            "optimize_tx_submission"
+        ],
+        "owner": "infra_team",
+        "tests": []
+    },
+    {
+        "signal_id": "NEWS_NEGATIVE_SENTIMENT_CRASH",
+        "intent": "Detect rapid sentiment crash in news for specific asset.",
+        "inputs": {
+            "source": "news_api",
+            "entity_type": "asset",
+            "required_features": [
+                "sentiment_score",
+                "article_count"
+            ]
+        },
+        "compute": {
+            "aggregation": "avg",
+            "window_s": 300
+        },
+        "rule": {
+            "feature": "sentiment_score",
+            "operator": "<",
+            "base_threshold": -0.8
+        },
+        "anti_flapping": {
+            "hysteresis": {
+                "enter_threshold": -0.8,
+                "exit_threshold": -0.5
+            },
+            "for_duration_s": 0,
+            "cooldown_s": 7200
+        },
+        "data_quality_gate": {
+            "min_timeliness_s": 300,
+            "min_completeness": 0.80,
+            "min_consistency": 0.80
+        },
+        "drift_hooks": {
+            "monitored_features": [
+                "sentiment_score"
+            ],
+            "baseline_window_d": 30,
+            "metrics": [
+                "PSI",
+                "JS"
+            ],
+            "action_on_drift": "log_only"
+        },
+        "confidence": {
+            "base_score": 0.6,
+            "factors": [
+                "source_reputation_avg"
+            ]
+        },
+        "severity": 4,
+        "evidence_pack": [
+            "top_headlines",
+            "source_list"
+        ],
+        "dedupe_key": "{signal_id}_{entity_id}",
+        "lifecycle": {
+            "enabled": true,
+            "auto_resolve_s": 14400
+        },
+        "actions": [
+            "notify_analyst",
+            "trigger_risk_check"
+        ],
+        "owner": "sentiment_team",
+        "tests": []
+    }
+]
