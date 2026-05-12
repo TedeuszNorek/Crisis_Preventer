@@ -1,205 +1,198 @@
-# ⚡ Vortex Analytica — Core Engine
+# Vortex Analytica — Core Engine
 
-**System automatycznej analizy i kontekstualizacji informacji w czasie rzeczywistym.**
-
-Monitoruje jednocześnie rynki finansowe, ruchy statków, wiadomości globalne i dane satelitarne — i łączy je w jeden spójny obraz sytuacji. Gdy coś jest ważne, agent LLM decyduje co sprawdzić dalej i pisze wpis do live feed analityka.
+Real-time multi-source intelligence platform. Monitors financial markets, ship movements, global news, and satellite imagery simultaneously — and connects them into a single situational picture. When something matters, an LLM agent decides what to investigate next and writes an entry to the live analyst feed.
 
 ---
 
-## Jak to działa
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     ŹRÓDŁA DANYCH                           │
-│                                                             │
-│  RSS/News ──┐   Binance ──┐   Deribit ──┐                  │
-│  AIS/Statki─┤   Polymarket┤   FRED/Macro┤                  │
-│  Copernicus─┘             └─────────────┘                  │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ RawEvents
+┌─────────────────────────────────────────────────────────────────┐
+│                         DATA SOURCES                            │
+│                                                                 │
+│  RSS / News ──┐   Binance Futures ──┐   Deribit Options ──┐    │
+│  AIS / Ships ─┤   Polymarket ───────┤   FRED / Macro ─────┤    │
+│  Copernicus ──┘                     └────────────────────────┘  │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │  RawEvents
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       SIGNAL ENGINE                             │
+│         Z-score anomaly · Anti-flapping · DQ gates             │
+│              → Signal(severity, domain, context)                │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+           ┌───────────────┴────────────────┐
+           │                                │
+           ▼                                ▼
+┌──────────────────────┐        ┌───────────────────────────┐
+│  CORRELATION RULES   │        │      LLM AGENT            │
+│  (instant, no LLM)   │        │      (Claude)             │
+│                      │        │                           │
+│  news:"war"      →   │        │  · write_feed_entry       │
+│   AIS + Deribit      │        │  · activate_module        │
+│                      │        │  · scan_satellite         │
+│  IV spike        →   │        │  · no_action              │
+│   RSS + Polymarket   │        │                           │
+└──────────┬───────────┘        └─────────────┬─────────────┘
+           │                                  │
+           └──────────────┬───────────────────┘
                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  SIGNAL ENGINE                              │
-│  Z-score anomaly · Anti-flapping · Data quality gates       │
-│  → Signal(severity, domain, context)                        │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-          ┌───────────────┴───────────────┐
-          │                               │
-          ▼                               ▼
-┌─────────────────┐            ┌──────────────────────┐
-│  CORRELATION    │            │   LLM AGENT          │
-│  RULES          │            │   (Claude)           │
-│  (instant)      │            │                      │
-│                 │            │  · write_feed_entry  │
-│  news+war →     │            │  · activate_module   │
-│   AIS+Deribit   │            │  · scan_satellite    │
-│                 │            │  · no_action         │
-│  IV spike →     │            │                      │
-│   RSS+Polymarket│            │  Pisze po polsku     │
-└────────┬────────┘            └──────────┬───────────┘
-         │                               │
-         └───────────────┬───────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│              LIVE FEED ("BIEŻACZKA")                        │
-│                                                             │
-│  [CRITICAL] AIS: tanker stopped w Hormuz + IV spike BTC     │
-│  [HIGH]     Polymarket wycenił wojnę +12% w 20 min         │
-│  [MEDIUM]   NDVI Ukraina spada — ryzyko urodzaju            │
-│  [INFO]     Binance funding BTC normalny                    │
-│                                                             │
-│  WebSocket → przeglądarka · REST API · Telegram (Q2)       │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    LIVE FEED  ("ticker")                        │
+│                                                                 │
+│  [CRITICAL]  AIS: tanker stopped in Hormuz + Deribit IV spike   │
+│  [HIGH]      Polymarket repriced war probability +12% / 20min   │
+│  [MEDIUM]    Copernicus: Ukraine NDVI dropping — harvest risk   │
+│  [INFO]      Binance BTC funding rate nominal                   │
+│                                                                 │
+│           WebSocket → browser · REST API · Telegram (Q2)       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Moduły źródłowe
+## Source Modules
 
-| Moduł | Co monitoruje | Anomalia = |
-|-------|--------------|-----------|
-| **Binance** | OI, funding rate perpetuals (BTC/ETH/SOL…) | Z-score >2.5σ — ekstremalne lewarowanie |
-| **Deribit** | IV opcji BTC/ETH, gamma exposure | IV spike/crush, duży ruch vol |
-| **Polymarket** | Rynki predykcji (polityka, makro, krypto) | Zmiana prawdopodobieństwa >5% na dużej puli |
-| **AIS / Statki** | Ruch statków w kluczowych cieśninach (Hormuz, Suez, Malacca…) | Zatrzymanie tankowca, anomalia prędkości |
-| **RSS / News** | 15+ globalnych feedów (Reuters, BBC, OilPrice, shipping news…) | Słowa kluczowe mapowane na instrumenty |
-| **Copernicus** | Sentinel-2: zdrowie roślin (NDVI), aktywność portów | Aktywowana przez agenta on-demand |
+| Module | What it monitors | Signal fires when |
+|--------|-----------------|-------------------|
+| **Binance** | OI + funding rate, perpetuals (BTC/ETH/SOL/…) | Z-score >2.5σ — extreme leverage buildup |
+| **Deribit** | Options IV chain BTC/ETH, gamma exposure | IV spike or crush, unusual volume |
+| **Polymarket** | Prediction markets — politics, macro, crypto | Probability shift >5% on large pools |
+| **AIS / Ships** | Vessel movements in strategic straits (Hormuz, Suez, Malacca, Taiwan…) | Tanker stopped, speed anomaly |
+| **RSS / News** | 15+ global feeds (Reuters, BBC, OilPrice, shipping news, KNF, NBP…) | Keywords mapped to instruments |
+| **Copernicus** | Sentinel-2: crop health (NDVI), port activity | Activated on-demand by the agent only |
 
 ---
 
-## Korelacje cross-domain
+## Cross-Domain Correlations
 
-Agent nie patrzy na moduły osobno. Gdy jeden źródło sygnalizuje problem, agent aktywuje powiązane:
+The agent does not look at modules in isolation. When one source signals a problem, correlated sources are activated automatically:
 
-| Trigger | Co agent sprawdza dalej |
-|---------|------------------------|
-| AIS: tanker zatrzymany w Hormuz | Deribit IV (ropa), Polymarket (conflict), Copernicus (port) |
-| Deribit IV spike | RSS (szukaj news-drivera), Polymarket (repricing) |
-| RSS: "war" / "blockade" | AIS (marynarka), Copernicus (satelita), Deribit (volatility) |
-| Polymarket: +10% zmiana | RSS (co się stało), Binance (market reaction) |
-| Copernicus: niska aktywność portu | AIS (cross-check live ships) |
-| Binance: extreme funding | Deribit, Polymarket, RSS (squeeze driver) |
+| Trigger | Agent activates |
+|---------|----------------|
+| AIS: tanker stopped in Hormuz | Deribit IV (oil proxy), Polymarket (conflict odds), Copernicus (port scan) |
+| Deribit IV spike | RSS (find the news driver), Polymarket (market repricing) |
+| RSS: "war" / "blockade" / "sanctions" | AIS (shipping disruption), Copernicus (satellite), Deribit (volatility) |
+| Polymarket: +10% probability shift | RSS (what happened), Binance (market reaction) |
+| Copernicus: low port activity | AIS (cross-check with live ship data) |
+| Binance: extreme funding rate | Deribit, Polymarket, RSS (squeeze driver) |
 
 ---
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/TedeuszNorek/SignalVortex.git
-cd SignalVortex
+git clone https://github.com/TedeuszNorek/Crisis_Preventer.git
+cd Crisis_Preventer
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Skonfiguruj klucze API
 cp .env.template .env
-# Edytuj .env
+# edit .env — add your API keys
 
-# Uruchom wszystkie moduły
+# Run all modules
 python -m src.runner
 
-# Uruchom tylko wybrane
+# Run specific modules only
 python -m src.runner --modules rss,binance,deribit
 ```
 
-Dashboard dostępny na **http://localhost:8000**
+Dashboard available at **http://localhost:8000**
 
 ---
 
-## Konfiguracja — `.env`
+## Environment — `.env`
 
 ```env
-# LLM Agent (wymagane)
+# LLM Agent (required for orchestration)
 ANTHROPIC_API_KEY=sk-ant-...
 
-# AIS Maritime (opcjonalne — https://aisstream.io)
-AISSTREAM_API_KEY=...
+# AIS maritime stream — https://aisstream.io
+AISSTREAM_API_KEY=
 
-# Copernicus Satellite (opcjonalne — https://dataspace.copernicus.eu)
-SENTINEL_HUB_CLIENT_ID=...
-SENTINEL_HUB_CLIENT_SECRET=...
+# ESA Copernicus Sentinel-2 — https://dataspace.copernicus.eu
+SENTINEL_HUB_CLIENT_ID=
+SENTINEL_HUB_CLIENT_SECRET=
 
-# Polymarket extended (opcjonalne)
-DOME_API_KEY=...
+# Polymarket extended data — https://domeapi.io
+DOME_API_KEY=
 ```
 
-Bez `ANTHROPIC_API_KEY` system działa — zbiera i wyświetla sygnały, ale agent LLM jest wyłączony.  
-Bez `AISSTREAM_API_KEY` moduł AIS jest pominięty.  
-Bez `SENTINEL_HUB_*` satelita jest pominięta (agent poinformuje że chciał skasować ale nie może).
+The system runs without `AISSTREAM_API_KEY` (AIS module skipped) and without Copernicus credentials (agent notes it wanted to scan but has no access). Only `ANTHROPIC_API_KEY` is required for the agent; without it, signals are collected and displayed but LLM orchestration is disabled.
 
 ---
 
-## Architektura — pliki
+## Repository Structure
 
 ```
 src/
   core/
     models.py          # RawEvent, Signal, EscalationDecision, Severity
-    event_bus.py       # Centralny event bus; zarządza polling rates
-  
+    event_bus.py       # Central async event bus; manages per-source polling rates
+
   sources/
     rss/
-      harvester.py     # Pobiera 15+ feedów, mapuje słowa kluczowe na instrumenty
-      feeds.py         # Lista feedów + keyword→instrument mapping
+      harvester.py     # 15+ feeds, keyword→instrument routing, severity tagging
+      feeds.py         # Feed list + keyword→instrument map
     binance/
-      client.py        # OI + funding rate z Z-score detection
+      client.py        # OI + funding Z-score detection across 7 symbols
     deribit/
-      client.py        # Łańcuch opcji, volume-weighted IV, gamma flip estimate
+      client.py        # Volume-weighted IV, gamma flip estimate, spike/crush detection
     polymarket/
-      client.py        # Active markets, prob shifts, free money detection
+      client.py        # Prob shift detection, free-money scanner, topic tagging
     ais/
-      client.py        # WebSocket aisstream.io, anomaly detection na prędkości
+      client.py        # aisstream.io WebSocket, 8 strategic zones, vessel anomaly detection
     copernicus/
-      client.py        # ESA Sentinel-2 (NDVI + port activity) — on-demand
-  
+      client.py        # ESA Sentinel-2 NDVI + port activity (agent-activated on demand)
+
   agent/
-    orchestrator.py    # Główny agent (Claude tool use) — decyduje co robić
-    correlations.py    # Reguły cross-domain (rule-based, instant)
-    context.py         # Buduje kontekst dla LLM z ostatnich sygnałów
-  
+    orchestrator.py    # Main LLM agent (Claude tool use) — decides what to do
+    correlations.py    # 6 rule-based cross-domain triggers (instant, zero LLM cost)
+    context.py         # Builds structured context bundle from recent signals for LLM
+
   api/
-    server.py          # FastAPI: REST + WebSocket /ws/feed + dashboard UI
-  
-  runner.py            # Main entry point — odpala wszystko async
+    server.py          # FastAPI: REST + WebSocket /ws/feed + browser dashboard
+
+  runner.py            # Async entry point — starts all modules concurrently
 ```
 
 ---
 
-## API
+## API Reference
 
-| Endpoint | Opis |
-|----------|------|
-| `GET /` | Dashboard HTML (live feed) |
-| `GET /feed` | Agent feed — wpisy bieżaczki (JSON) |
-| `GET /signals` | Ostatnie sygnały ze wszystkich źródeł |
-| `GET /escalations` | Historia decyzji agenta |
-| `GET /polling-rates` | Aktualne interwały pollingu |
-| `POST /polling-rates/{source}?seconds=N` | Ręczna zmiana interwału |
-| `WS /ws/feed` | WebSocket — live stream sygnałów i eskalacji |
+| Endpoint | Description |
+|----------|-------------|
+| `GET /` | Browser dashboard (live feed UI) |
+| `GET /feed` | Agent-written feed entries (JSON) |
+| `GET /signals` | Recent signals from all sources |
+| `GET /escalations` | Agent escalation history |
+| `GET /polling-rates` | Current polling intervals per source |
+| `POST /polling-rates/{source}?seconds=N` | Override polling interval |
+| `WS /ws/feed` | WebSocket — live stream of signals and escalations |
 
 ---
 
 ## Roadmap
 
-**Q1 — obecny (TRL III→IV)**
-- [x] Signal engine z anti-flapping i Z-score
-- [x] Moduły: Binance, Deribit, Polymarket, AIS, RSS, Copernicus
-- [x] Agent LLM z regułami korelacji cross-domain
-- [x] Live feed WebSocket + dashboard
+**Q1 — current (TRL III→IV)**
+- [x] Signal engine with Z-score, anti-flapping, data quality gates
+- [x] Source modules: Binance, Deribit, Polymarket, AIS, RSS, Copernicus
+- [x] LLM agent with cross-domain correlation rules
+- [x] Live feed WebSocket + browser dashboard
 
-**Q2 — detekcja punktów krytycznych**
-- [ ] Klasyfikacja tematyczna RSS (LLM embedding)
-- [ ] Utrzymywanie sesji tematycznych (pamięć kontekstowa)
-- [ ] Telegram bot dla alertów CRITICAL
-- [ ] Pierwszy raport syntetyczny PDF
+**Q2 — critical point detection**
+- [ ] Thematic RSS classification (LLM embeddings)
+- [ ] Thematic session memory (long-context awareness)
+- [ ] Telegram alerts for CRITICAL signals
+- [ ] First synthetic PDF report
 
-**Q3 — pilotaż**
-- [ ] Multi-agent: osobny agent per domena
-- [ ] Integracja GUS / KNF / Eurostat
-- [ ] SSO dla instytucji
-- [ ] Pełny Sentinel-2 pipeline (rasterio)
+**Q3 — institutional pilot**
+- [ ] Multi-agent: dedicated agent per domain
+- [ ] GUS / KNF / Eurostat integration
+- [ ] SSO for institutional deployments
+- [ ] Full Sentinel-2 rasterio pipeline
 
 ---
 
-*Vortex Analytica — TRL II→V · AI/LLM · Dual-use (MVP: cywilny) · B2B/B2G*
+*Vortex Analytica · TRL II→V · AI/LLM · Dual-use (MVP: civilian) · B2B/B2G*
