@@ -10,9 +10,9 @@ Real-time multi-source intelligence platform. Monitors financial markets, ship m
 ┌─────────────────────────────────────────────────────────────────┐
 │                         DATA SOURCES                            │
 │                                                                 │
-│  RSS / News ──┐   Binance Futures ──┐   Deribit Options ──┐    │
-│  AIS / Ships ─┤   Polymarket ───────┤   FRED / Macro ─────┤    │
-│  Copernicus ──┘                     └────────────────────────┘  │
+│   RSS / News  ·  AIS / Ships  ·  Copernicus (satellite)        │
+│   Binance Futures  ·  Deribit Options  ·  Polymarket  ·  FRED  │
+│                                                                 │
 └──────────────────────────┬──────────────────────────────────────┘
                            │  RawEvents
                            ▼
@@ -27,7 +27,7 @@ Real-time multi-source intelligence platform. Monitors financial markets, ship m
            ▼                                ▼
 ┌──────────────────────┐        ┌───────────────────────────┐
 │  CORRELATION RULES   │        │      LLM AGENT            │
-│  (instant, no LLM)   │        │      (Claude)             │
+│  (instant, no LLM)   │        │  Claude / DeepSeek / …    │
 │                      │        │                           │
 │  news:"war"      →   │        │  · write_feed_entry       │
 │   AIS + Deribit      │        │  · activate_module        │
@@ -46,7 +46,7 @@ Real-time multi-source intelligence platform. Monitors financial markets, ship m
 │  [MEDIUM]    Copernicus: Ukraine NDVI dropping — harvest risk   │
 │  [INFO]      Binance BTC funding rate nominal                   │
 │                                                                 │
-│           WebSocket → browser · REST API · Telegram (Q2)       │
+│              WebSocket → browser  ·  REST API                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
